@@ -14,10 +14,8 @@
 #include "digout.h"
 #include "digin.h"
 
-
-
 typedef struct {
-    uint16_t  address;
+    uint16_t address;
     uint16_t model;
     uint16_t serial_n;
 } minion_context_t;
@@ -25,19 +23,21 @@ typedef struct {
 #define ADDRESS_KEY    "indirizzo"
 #define SERIAL_NUM_KEY "numero seriale"
 #define MODEL_KEY      "modello"
-
 #define MODBUS_TIMEOUT 20
 #define MB_PORTNUM     1
 #define SLAVE_ADDR     1
 #define SERIAL_NUMBER  2
 #define MODEL_NUMBER   3
+#define REG_COUNT      3
 
 // Timeout threshold for UART = number of symbols (~10 tics) with unchanged
 // state on receive pin
 #define ECHO_READ_TOUT (3)     // 3.5T * 8 = 28 ticks, TOUT=3 -> ~24..33 ticks
-static const char *TAG = "Minion";
 
-#define REG_COUNT 3
+static const char *     TAG = "Minion";
+static minion_context_t context;
+ModbusSlave             slave;
+
 
 ModbusError myRegisterCallback(const ModbusSlave *status, const ModbusRegisterCallbackArgs *args,
                                ModbusRegisterCallbackResult *result);
@@ -90,13 +90,10 @@ ModbusSlaveFunctionHandler custom_functions[] = {
     {0, NULL}};
 
 
-
 void minion_init(void) {
-    minion_context_t context;
     context.address  = SLAVE_ADDR;
     context.serial_n = SERIAL_NUMBER;
     context.model    = MODEL_NUMBER;
-    ModbusSlave     slave;
     ModbusErrorInfo err;
     err = modbusSlaveInit(&slave,
                           myRegisterCallback,         // Callback for register operations
@@ -142,24 +139,24 @@ void minion_init(void) {
         context.model = MODEL_NUMBER;
     }
     ESP_LOGI(TAG, "Model: %02X", context.model);
+}
 
-    for (;;) {
-        uint8_t buffer[256] = {0};
-        int     len         = uart_read_bytes(MB_PORTNUM, buffer, 256, pdMS_TO_TICKS(MODBUS_TIMEOUT));
-        if (len > 0) {
-            ModbusErrorInfo err;
-            err = modbusParseRequestRTU(&slave, context.address, buffer, len);
+void minion_manage(void) {
+    uint8_t buffer[256] = {0};
+    int     len         = uart_read_bytes(MB_PORTNUM, buffer, 256, pdMS_TO_TICKS(MODBUS_TIMEOUT));
+    if (len > 0) {
+        ModbusErrorInfo err;
+        err = modbusParseRequestRTU(&slave, context.address, buffer, len);
 
-            if (modbusIsOk(err)) {
-                size_t rlen = modbusSlaveGetResponseLength(&slave);
-                if (rlen > 0) {
-                    uart_write_bytes(MB_PORTNUM, modbusSlaveGetResponse(&slave), rlen);
-                } else {
-                    ESP_LOGI(TAG, "Empty response");
-                }
+        if (modbusIsOk(err)) {
+            size_t rlen = modbusSlaveGetResponseLength(&slave);
+            if (rlen > 0) {
+                uart_write_bytes(MB_PORTNUM, modbusSlaveGetResponse(&slave), rlen);
             } else {
-                ESP_LOGW(TAG, "Invalid request with source %i and error %i",  err.source, err.error);
+                ESP_LOGI(TAG, "Empty response");
             }
+        } else {
+            ESP_LOGW(TAG, "Invalid request with source %i and error %i", err.source, err.error);
         }
     }
 }
@@ -207,7 +204,7 @@ ModbusError myRegisterCallback(const ModbusSlave *status, const ModbusRegisterCa
                 case MODBUS_HOLDING_REGISTER: {
                     uint16_t *registers[]   = {&ctx->address, &ctx->model, &ctx->serial_n};
                     *registers[args->index] = result->value;
-                    char *keys[] = {ADDRESS_KEY, MODEL_KEY, SERIAL_NUM_KEY};
+                    char *keys[]            = {ADDRESS_KEY, MODEL_KEY, SERIAL_NUM_KEY};
                     save_uint16_option(registers[args->index], keys[args->index]);
                     break;
                 }

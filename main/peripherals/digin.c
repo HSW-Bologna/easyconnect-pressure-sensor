@@ -16,9 +16,6 @@
 #include "freertos/timers.h"
 #include "digin.h"
 
-static const char *TAG = "Digin";
-
-
 static debounce_filter_t filter;
 static SemaphoreHandle_t sem;
 
