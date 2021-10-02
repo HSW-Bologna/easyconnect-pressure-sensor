@@ -2,7 +2,9 @@
 #include "config/app_config.h"
 #include "driver/gpio.h"
 #include "driver/uart.h"
+#include "esp_err.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "hardwareprofile.h"
 #include "lightmodbus/lightmodbus.h"
 #include "lightmodbus/master.h"
@@ -10,6 +12,7 @@
 #include "lightmodbus/slave_func.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "storage.h"
 #include "digout.h"
 #include "digin.h"
@@ -38,14 +41,14 @@ static const char *     TAG = "Minion";
 static minion_context_t context;
 ModbusSlave             slave;
 
-
 ModbusError myRegisterCallback(const ModbusSlave *status, const ModbusRegisterCallbackArgs *args,
                                ModbusRegisterCallbackResult *result);
 
 ModbusError                  myExceptionCallback(const ModbusSlave *slave, uint8_t function, ModbusExceptionCode code);
 static LIGHTMODBUS_RET_ERROR setAddressFunction(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
                                                 uint8_t requestLength);
-
+static LIGHTMODBUS_RET_ERROR sendAddressFunction(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
+                                                 uint8_t requestLength);
 
 ModbusSlaveFunctionHandler custom_functions[] = {
 #if defined(LIGHTMODBUS_F01S) || defined(LIGHTMODBUS_SLAVE_FULL)
@@ -85,6 +88,7 @@ ModbusSlaveFunctionHandler custom_functions[] = {
 #endif
 
     {64, setAddressFunction},
+    {66, sendAddressFunction},
 
     // Guard - prevents 0 array size
     {0, NULL}};
@@ -100,7 +104,7 @@ void minion_init(void) {
                           myExceptionCallback,        // Callback for handling slave exceptions (optional)
                           modbusDefaultAllocator,     // Memory allocator for allocating responses
                           custom_functions,           // Set of supported functions
-                          10                          // Number of supported functions
+                          11                          // Number of supported functions
     );
 
     // Check for errors
@@ -139,6 +143,12 @@ void minion_init(void) {
         context.model = MODEL_NUMBER;
     }
     ESP_LOGI(TAG, "Model: %02X", context.model);
+
+    uint8_t mac_address[6] = {0};
+    esp_read_mac(mac_address, ESP_MAC_WIFI_STA);
+    unsigned int mac = mac_address[0] | mac_address[1] << 8 | mac_address[2] << 16 | mac_address[3] << 24;
+    ESP_LOGI(TAG, "MAC Address: %i", mac);
+    srandom(mac);
 }
 
 void minion_manage(void) {
@@ -160,6 +170,7 @@ void minion_manage(void) {
         }
     }
 }
+
 
 ModbusError myRegisterCallback(const ModbusSlave *status, const ModbusRegisterCallbackArgs *args,
                                ModbusRegisterCallbackResult *result) {
@@ -243,6 +254,44 @@ static LIGHTMODBUS_RET_ERROR setAddressFunction(ModbusSlave *slave, uint8_t func
     minion_context_t *ctx = modbusSlaveGetUserPointer(slave);
     ctx->address          = requestPDU[1];
     save_uint16_option(&ctx->address, ADDRESS_KEY);
+
+    return MODBUS_NO_ERROR();
+}
+
+
+static LIGHTMODBUS_RET_ERROR sendAddressFunction(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
+                                                 uint8_t requestLength) {
+    minion_context_t *ctx = modbusSlaveGetUserPointer(slave);
+
+    // Check request length
+    if (requestLength < 3) {
+        return modbusBuildException(slave, function, MODBUS_EXCEP_ILLEGAL_VALUE);
+    }
+
+    uint16_t delay        = requestPDU[1] << 8 | requestPDU[2];
+    int      random_delay = rand() % (delay * 1000);
+
+    ESP_LOGI(TAG, "Random delay: %i", random_delay);
+    // vTaskDelay(random_delay);
+
+
+    ESP_LOGI(TAG, "Serial number: %i", ctx->serial_n);
+    // ---- RESPONSE ----
+
+    if (modbusSlaveAllocateResponse(slave, 3)) {
+        return MODBUS_GENERAL_ERROR(ALLOC);
+    }
+
+    slave->response.pdu[0] = function;
+    slave->response.pdu[1] = (ctx->serial_n >> 8) & 0xFF;
+    slave->response.pdu[2] = ctx->serial_n & 0xFF;
+
+    vTaskDelay(random_delay);
+
+    ESP_LOG_BUFFER_HEX(TAG, modbusSlaveGetResponse(slave), modbusSlaveGetResponseLength(slave));
+    uart_write_bytes(MB_PORTNUM, modbusSlaveGetResponse(slave), modbusSlaveGetResponseLength(slave));
+
+    modbusSlaveFreeResponse(slave);
 
     return MODBUS_NO_ERROR();
 }
