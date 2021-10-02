@@ -1,8 +1,12 @@
 #ifndef HARDWAREPROFILE_H_INCLUDED
 #define HARDWAREPROFILE_H_INCLUDED
 
-/*
- * Definizioni dei pin da utilizzare
- */
+#define IN1 GPIO_NUM_25
+#define IN2 GPIO_NUM_26
+#define OUT GPIO_NUM_23
+
+#define MB_UART_TXD GPIO_NUM_5
+#define MB_UART_RXD GPIO_NUM_18
+#define MB_DERE     GPIO_NUM_17
 
 #endif
