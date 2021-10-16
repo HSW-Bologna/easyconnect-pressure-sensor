@@ -105,7 +105,7 @@ int load_uint16_option(uint16_t *value, char *key) {
 
 void save_uint16_option(uint16_t *value, char *key) {
     nvs_handle_t handle;
-    ESP_LOGI(TAG, "Trying to save key %s", key);
+    ESP_LOGI(TAG, "Trying to save key %s with value %X", key, *value);
     assert(strlen(key) <= 15);
 
     esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);

@@ -26,7 +26,7 @@ typedef struct {
 #define ADDRESS_KEY    "indirizzo"
 #define SERIAL_NUM_KEY "numero seriale"
 #define MODEL_KEY      "modello"
-#define MODBUS_TIMEOUT 20
+#define MODBUS_TIMEOUT 10
 #define MB_PORTNUM     1
 #define SLAVE_ADDR     1
 #define SERIAL_NUMBER  2
@@ -177,6 +177,7 @@ ModbusError myRegisterCallback(const ModbusSlave *status, const ModbusRegisterCa
 
     minion_context_t *ctx = modbusSlaveGetUserPointer(status);
 
+    printf("%i %i %i %i\n", args->query, args->type, args->index, args->value);
     switch (args->query) {
         // R/W access check
         case MODBUS_REGQ_R_CHECK:
@@ -187,7 +188,7 @@ ModbusError myRegisterCallback(const ModbusSlave *status, const ModbusRegisterCa
             if (args->type == MODBUS_INPUT_REGISTER) {
                 result->exceptionCode = MODBUS_EXCEP_ILLEGAL_FUNCTION;
             }
-            result->exceptionCode = args->value < REG_COUNT ? MODBUS_EXCEP_NONE : MODBUS_EXCEP_ILLEGAL_ADDRESS;
+            result->exceptionCode = args->index < REG_COUNT ? MODBUS_EXCEP_NONE : MODBUS_EXCEP_ILLEGAL_ADDRESS;
             break;
 
         // Read register
@@ -214,7 +215,7 @@ ModbusError myRegisterCallback(const ModbusSlave *status, const ModbusRegisterCa
             switch (args->type) {
                 case MODBUS_HOLDING_REGISTER: {
                     uint16_t *registers[]   = {&ctx->address, &ctx->model, &ctx->serial_n};
-                    *registers[args->index] = result->value;
+                    *registers[args->index] = args->value;
                     char *keys[]            = {ADDRESS_KEY, MODEL_KEY, SERIAL_NUM_KEY};
                     save_uint16_option(registers[args->index], keys[args->index]);
                     break;
