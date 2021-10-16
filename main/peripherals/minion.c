@@ -5,7 +5,9 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "freertos/projdefs.h"
 #include "hardwareprofile.h"
+#include "lightmodbus/base.h"
 #include "lightmodbus/lightmodbus.h"
 #include "lightmodbus/master.h"
 #include "lightmodbus/slave.h"
@@ -23,16 +25,19 @@ typedef struct {
     uint16_t serial_n;
 } minion_context_t;
 
-#define ADDRESS_KEY    "indirizzo"
-#define SERIAL_NUM_KEY "numero seriale"
-#define MODEL_KEY      "modello"
-#define MODBUS_TIMEOUT 10
-#define MB_PORTNUM     1
-#define SLAVE_ADDR     1
-#define SERIAL_NUMBER  2
-#define MODEL_NUMBER   3
-#define REG_COUNT      3
-
+#define ADDRESS_KEY             "indirizzo"
+#define SERIAL_NUM_KEY          "numero seriale"
+#define MODEL_KEY               "modello"
+#define MODBUS_TIMEOUT          10
+#define MB_PORTNUM              1
+#define SLAVE_ADDR              1
+#define SERIAL_NUMBER           2
+#define MODEL_NUMBER            3
+#define REG_COUNT               3
+#define CONFIG_ADDRESS_FUNCTION 64
+#define NETWORK_INIZIALIZATION  65
+#define RANDOM_SERIAL_NUMBER    66
+#define SET_CLASS_OUTPUT        70
 // Timeout threshold for UART = number of symbols (~10 tics) with unchanged
 // state on receive pin
 #define ECHO_READ_TOUT (3)     // 3.5T * 8 = 28 ticks, TOUT=3 -> ~24..33 ticks
@@ -49,6 +54,10 @@ static LIGHTMODBUS_RET_ERROR setAddressFunction(ModbusSlave *slave, uint8_t func
                                                 uint8_t requestLength);
 static LIGHTMODBUS_RET_ERROR sendAddressFunction(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
                                                  uint8_t requestLength);
+static LIGHTMODBUS_RET_ERROR inizializationFunction(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
+                                                    uint8_t requestLength);
+static LIGHTMODBUS_RET_ERROR setClassOutput(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
+                                            uint8_t requestLength);
 
 ModbusSlaveFunctionHandler custom_functions[] = {
 #if defined(LIGHTMODBUS_F01S) || defined(LIGHTMODBUS_SLAVE_FULL)
@@ -87,8 +96,11 @@ ModbusSlaveFunctionHandler custom_functions[] = {
     {22, modbusParseRequest22},
 #endif
 
-    {64, setAddressFunction},
-    {66, sendAddressFunction},
+    {CONFIG_ADDRESS_FUNCTION, setAddressFunction},
+    {RANDOM_SERIAL_NUMBER, sendAddressFunction},
+    {NETWORK_INIZIALIZATION, inizializationFunction},
+    {SET_CLASS_OUTPUT, setClassOutput},
+
 
     // Guard - prevents 0 array size
     {0, NULL}};
@@ -104,7 +116,7 @@ void minion_init(void) {
                           myExceptionCallback,        // Callback for handling slave exceptions (optional)
                           modbusDefaultAllocator,     // Memory allocator for allocating responses
                           custom_functions,           // Set of supported functions
-                          11                          // Number of supported functions
+                          13                          // Number of supported functions
     );
 
     // Check for errors
@@ -146,9 +158,9 @@ void minion_init(void) {
 
     uint8_t mac_address[6] = {0};
     esp_read_mac(mac_address, ESP_MAC_WIFI_STA);
-    unsigned int mac = mac_address[0] | mac_address[1] << 8 | mac_address[2] << 16 | mac_address[3] << 24;
+    unsigned int mac = mac_address[2] | mac_address[3] << 8 | mac_address[4] << 16 | mac_address[5] << 24;
     ESP_LOGI(TAG, "MAC Address: %i", mac);
-    srandom(mac);
+    srand(mac);
 }
 
 void minion_manage(void) {
@@ -165,8 +177,9 @@ void minion_manage(void) {
             } else {
                 ESP_LOGI(TAG, "Empty response");
             }
-        } else {
+        } else if (err.error != MODBUS_ERROR_ADDRESS) {
             ESP_LOGW(TAG, "Invalid request with source %i and error %i", err.source, err.error);
+            ESP_LOG_BUFFER_HEX(TAG, buffer, len);
         }
     }
 }
@@ -246,15 +259,24 @@ ModbusError myExceptionCallback(const ModbusSlave *slave, uint8_t function, Modb
 static LIGHTMODBUS_RET_ERROR setAddressFunction(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
                                                 uint8_t requestLength) {
     // Check request length
-    if (requestLength < 1)
+    if (requestLength < 1) {
         return modbusBuildException(slave, function, MODBUS_EXCEP_ILLEGAL_VALUE);
+    }
     // Check for the 'invalid' case
-    if (requestPDU[1] == 0)
+    if (requestPDU[1] == 0) {
         return modbusBuildException(slave, function, MODBUS_EXCEP_ILLEGAL_VALUE);
+    }
+
+    uint16_t serial_number;
+    if (requestLength == 4) {
+        serial_number = (requestPDU[2] << 8) | requestPDU[3];
+    }
 
     minion_context_t *ctx = modbusSlaveGetUserPointer(slave);
-    ctx->address          = requestPDU[1];
-    save_uint16_option(&ctx->address, ADDRESS_KEY);
+    if (requestLength == 2 || (requestLength == 4 && serial_number == ctx->serial_n)) {
+        ctx->address = requestPDU[1];
+        save_uint16_option(&ctx->address, ADDRESS_KEY);
+    }
 
     return MODBUS_NO_ERROR();
 }
@@ -277,22 +299,45 @@ static LIGHTMODBUS_RET_ERROR sendAddressFunction(ModbusSlave *slave, uint8_t fun
 
 
     ESP_LOGI(TAG, "Serial number: %i", ctx->serial_n);
+
     // ---- RESPONSE ----
+    uint8_t response[4];
+    response[0]  = (ctx->serial_n >> 8) & 0xFF;
+    response[1]  = ctx->serial_n & 0xFF;
+    uint16_t crc = modbusCRC(response, 2);
+    ESP_LOGI(TAG, "CRC: %i", crc);
+    response[2] = (crc >> 8) & 0xFF;
+    response[3] = crc & 0xFF;
 
-    if (modbusSlaveAllocateResponse(slave, 3)) {
-        return MODBUS_GENERAL_ERROR(ALLOC);
+    vTaskDelay(pdMS_TO_TICKS(random_delay));
+    uart_write_bytes(MB_PORTNUM, response, 4);
+    vTaskDelay(pdMS_TO_TICKS(delay*1000-random_delay));
+
+    return MODBUS_NO_ERROR();
+}
+
+static LIGHTMODBUS_RET_ERROR inizializationFunction(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
+                                                    uint8_t requestLength) {
+
+    digout_rele_update(0);
+    ESP_LOGI(TAG, "rele off");
+
+    return MODBUS_NO_ERROR();
+}
+
+static LIGHTMODBUS_RET_ERROR setClassOutput(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
+                                            uint8_t requestLength) {
+    // Check request length
+    if (requestLength < 3)
+        return modbusBuildException(slave, function, MODBUS_EXCEP_ILLEGAL_VALUE);
+
+    minion_context_t *ctx = modbusSlaveGetUserPointer(slave);
+    uint16_t class        = requestPDU[1] << 8 | requestPDU[2];
+    ESP_LOGI(TAG, "class & model %i, %i", class, ctx->model);
+    if (class == ctx->model) {
+        digout_rele_update(requestPDU[3]);
+        ESP_LOGI(TAG, "update rele value %i", requestPDU[3]);
     }
-
-    slave->response.pdu[0] = function;
-    slave->response.pdu[1] = (ctx->serial_n >> 8) & 0xFF;
-    slave->response.pdu[2] = ctx->serial_n & 0xFF;
-
-    vTaskDelay(random_delay);
-
-    ESP_LOG_BUFFER_HEX(TAG, modbusSlaveGetResponse(slave), modbusSlaveGetResponseLength(slave));
-    uart_write_bytes(MB_PORTNUM, modbusSlaveGetResponse(slave), modbusSlaveGetResponseLength(slave));
-
-    modbusSlaveFreeResponse(slave);
 
     return MODBUS_NO_ERROR();
 }
