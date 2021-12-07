@@ -9,7 +9,7 @@
 #include "freertos/queue.h"
 #include "driver/gpio.h"
 
-#define GPIO_OUTPUT_PIN_SEL  (1ULL << OUT)
+#define GPIO_OUTPUT_PIN_SEL  (1ULL << OUT) 
 
 void digout_init(void) {
     //zero-initialize the config structure.

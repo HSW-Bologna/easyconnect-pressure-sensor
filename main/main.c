@@ -18,7 +18,7 @@ void app_main(void) {
     // view_init(&model);
     controller_init(&model);
     digin_init();
-    digout_init();
+    //digout_init();
     minion_init();
 
     ESP_LOGI(TAG, "Begin main loop");

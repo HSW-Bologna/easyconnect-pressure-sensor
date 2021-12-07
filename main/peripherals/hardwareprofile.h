@@ -1,12 +1,14 @@
 #ifndef HARDWAREPROFILE_H_INCLUDED
 #define HARDWAREPROFILE_H_INCLUDED
 
-#define IN1 GPIO_NUM_25
-#define IN2 GPIO_NUM_26
-#define OUT GPIO_NUM_23
+ #define IN1 GPIO_NUM_1 //safety
+ #define IN2 GPIO_NUM_10 //signal
+ #define OUT GPIO_NUM_8
 
-#define MB_UART_TXD GPIO_NUM_5
-#define MB_UART_RXD GPIO_NUM_18
-#define MB_DERE     GPIO_NUM_17
+#define RELE GPIO_NUM_0
+
+#define MB_UART_TXD GPIO_NUM_21
+#define MB_UART_RXD GPIO_NUM_20
+#define MB_DERE     GPIO_NUM_3
 
 #endif
