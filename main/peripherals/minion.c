@@ -32,7 +32,7 @@ typedef struct {
 #define MB_PORTNUM              1
 #define SLAVE_ADDR              1
 #define SERIAL_NUMBER           2
-#define MODEL_NUMBER            3
+#define MODEL_NUMBER            0
 #define REG_COUNT               3
 #define CONFIG_ADDRESS_FUNCTION 64
 #define NETWORK_INIZIALIZATION  65
