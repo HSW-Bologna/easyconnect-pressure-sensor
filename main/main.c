@@ -8,6 +8,7 @@
 #include "peripherals/digout.h"
 #include "peripherals/minion.h"
 #include "peripherals/storage.h"
+#include "peripherals/heartbeat.h"
 
 static const char *TAG = "Main";
 
@@ -18,8 +19,9 @@ void app_main(void) {
     // view_init(&model);
     controller_init(&model);
     digin_init();
-    //digout_init();
+    digout_init();
     minion_init();
+    heartbeat_init(2000UL);
 
     ESP_LOGI(TAG, "Begin main loop");
     for (;;) {

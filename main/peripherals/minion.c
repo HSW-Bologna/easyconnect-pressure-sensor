@@ -19,11 +19,6 @@
 #include "digout.h"
 #include "digin.h"
 
-typedef struct {
-    uint16_t address;
-    uint16_t model;
-    uint16_t serial_n;
-} minion_context_t;
 
 #define ADDRESS_KEY             "indirizzo"
 #define SERIAL_NUM_KEY          "numero seriale"
@@ -42,7 +37,15 @@ typedef struct {
 // state on receive pin
 #define ECHO_READ_TOUT (3)     // 3.5T * 8 = 28 ticks, TOUT=3 -> ~24..33 ticks
 
-static const char *     TAG = "Minion";
+
+typedef struct {
+    uint16_t address;
+    uint16_t model;
+    uint16_t serial_n;
+} minion_context_t;
+
+
+static const char      *TAG = "Minion";
 static minion_context_t context;
 ModbusSlave             slave;
 
@@ -100,7 +103,6 @@ ModbusSlaveFunctionHandler custom_functions[] = {
     {RANDOM_SERIAL_NUMBER, sendAddressFunction},
     {NETWORK_INIZIALIZATION, inizializationFunction},
     {SET_CLASS_OUTPUT, setClassOutput},
-
 
     // Guard - prevents 0 array size
     {0, NULL}};
@@ -311,14 +313,13 @@ static LIGHTMODBUS_RET_ERROR sendAddressFunction(ModbusSlave *slave, uint8_t fun
 
     vTaskDelay(pdMS_TO_TICKS(random_delay));
     uart_write_bytes(MB_PORTNUM, response, 4);
-    vTaskDelay(pdMS_TO_TICKS(delay*1000-random_delay));
+    vTaskDelay(pdMS_TO_TICKS(delay * 1000 - random_delay));
 
     return MODBUS_NO_ERROR();
 }
 
 static LIGHTMODBUS_RET_ERROR inizializationFunction(ModbusSlave *slave, uint8_t function, const uint8_t *requestPDU,
                                                     uint8_t requestLength) {
-
     digout_rele_update(0);
     ESP_LOGI(TAG, "rele off");
 
