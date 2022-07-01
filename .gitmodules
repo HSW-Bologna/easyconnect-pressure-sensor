@@ -13,3 +13,6 @@
 [submodule "components/generic_embedded_libs"]
 	path = components/generic_embedded_libs
 	url = https://github.com/Maldus512/generic_embedded_libs.git
+[submodule "components/easyconnect-device"]
+	path = components/easyconnect-device
+	url = https://github.com/HSW-Bologna/easyconnect-device.git

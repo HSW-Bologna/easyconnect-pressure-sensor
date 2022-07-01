@@ -19,23 +19,17 @@
 static debounce_filter_t filter;
 static SemaphoreHandle_t sem;
 
+
 static void periodic_read(TimerHandle_t timer);
 
-#define GPIO_INPUT_PIN_SEL  ((1ULL<<IN1) | (1ULL<<IN2) )
 
 void digin_init(void) {
-     //zero-initialize the config structure.
     gpio_config_t io_conf = {};
-    //disable interrupt
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    //bit mask of the pins, use GPIO4/5 here
-    io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
-    //set as input mode
-    io_conf.mode = GPIO_MODE_INPUT;
-    //disable pull-down mode
-    io_conf.pull_down_en = 0;
-    //disable pull-up mode
-    io_conf.pull_up_en = 0;
+    io_conf.intr_type     = GPIO_INTR_DISABLE;
+    io_conf.pin_bit_mask  = BIT64(HAP_SAFETY) | BIT64(HAP_SIGNAL);
+    io_conf.mode          = GPIO_MODE_INPUT;
+    io_conf.pull_down_en  = 0;
+    io_conf.pull_up_en    = 0;
     gpio_config(&io_conf);
 
     debounce_filter_init(&filter);
@@ -45,20 +39,23 @@ void digin_init(void) {
     xTimerStart(timer, portMAX_DELAY);
 }
 
+
 int digin_get(digin_t digin) {
     int res = 0;
     xSemaphoreTake(sem, portMAX_DELAY);
-   res= debounce_read(&filter, digin);
-   xSemaphoreGive(sem);
-   return res;
+    res = debounce_read(&filter, digin);
+    xSemaphoreGive(sem);
+    return res;
 }
 
+
 int digin_take_reading(void) {
-    unsigned int input=0;
-    input|=!gpio_get_level(IN1);
-    input|=(!gpio_get_level(IN2))<<1;
+    unsigned int input = 0;
+    input |= !gpio_get_level(HAP_SAFETY);
+    input |= (!gpio_get_level(HAP_SIGNAL)) << 1;
     return debounce_filter(&filter, input, 10);
 }
+
 
 unsigned int digin_get_inputs(void) {
     return debounce_value(&filter);
@@ -66,9 +63,8 @@ unsigned int digin_get_inputs(void) {
 
 
 static void periodic_read(TimerHandle_t timer) {
-    (void) timer;
+    (void)timer;
     xSemaphoreTake(sem, portMAX_DELAY);
     digin_take_reading();
     xSemaphoreGive(sem);
 }
-

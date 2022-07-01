@@ -5,9 +5,14 @@
 #include <stdlib.h>
 
 
-void heartbeat_init(size_t period_ms);
-void heartbeat_resume(void);
-void heartbeat_stop(void);
+typedef enum {
+    HEARTBEAT_STATE_OK,
+    HEARTBEAT_STATE_KO,
+} heartbeat_state_t;
+
+
+void heartbeat_init(void);
+void heartbeat_set_state(heartbeat_state_t state);
 
 
 #endif

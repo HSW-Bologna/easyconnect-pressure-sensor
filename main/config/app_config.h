@@ -7,4 +7,6 @@
 
 #define APP_CONFIG_FIRMWARE_VERSION "0.0.1"
 
+#define APP_CONFIG_BASE_TASK_STACK_SIZE 512
+
 #endif

@@ -8,52 +8,43 @@
 #include "heartbeat.h"
 
 
-static void heartbeat_print_heap_status(void);
+static const char   *TAG   = "Heartbeat";
+static TimerHandle_t timer = NULL;
 
 
-static const char   *TAG       = "Heartbeat";
-static TimerHandle_t timer     = NULL;
-static unsigned long hb_period = 1000UL;
+static void heartbeat_timer(TimerHandle_t timer) {
+    heartbeat_state_t state = (heartbeat_state_t)(uintptr_t)pvTimerGetTimerID(timer);
 
-/**
- * Timer di attivita'. Accende e spegne il led di attivita'
- */
-static void heartbeat_timer(void *arg) {
-    (void)arg;
-    static int    blink   = 0;
-    static size_t counter = 0;
+    switch (state) {
+        case HEARTBEAT_STATE_OK:
+            gpio_set_level(HAP_LED_RUN, 0);
+            break;
 
-    gpio_set_level(HAP_LED_RUN, !blink);
-    blink = !blink;
-
-    if (counter++ >= 10) {
-        heartbeat_print_heap_status();
-        counter = 0;
+        case HEARTBEAT_STATE_KO:
+            gpio_set_level(HAP_LED_RUN, 1);
+            break;
     }
-
-    xTimerChangePeriod(timer, pdMS_TO_TICKS(blink ? hb_period : 50UL), portMAX_DELAY);
 }
 
 
-void heartbeat_init(size_t period_ms) {
-    gpio_set_direction(HAP_LED_RUN, GPIO_MODE_OUTPUT);
-    hb_period = period_ms;
-    timer     = xTimerCreate("idle", pdMS_TO_TICKS(hb_period), pdTRUE, NULL, heartbeat_timer);
-    xTimerStart(timer, portMAX_DELAY);
-    heartbeat_print_heap_status();
-}
+void heartbeat_init(void) {
+    (void)TAG;
 
+    gpio_config_t config = {
+        .intr_type    = GPIO_INTR_DISABLE,
+        .mode         = GPIO_MODE_OUTPUT,
+        .pin_bit_mask = BIT64(HAP_LED_RUN),
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_up_en   = GPIO_PULLUP_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&config));
+    gpio_set_level(HAP_LED_RUN, 1);
 
-void heartbeat_stop(void) {
-    xTimerStop(timer, portMAX_DELAY);
-}
-
-
-void heartbeat_resume(void) {
+    timer = xTimerCreate("idle", pdMS_TO_TICKS(100), pdTRUE, (void *)(uintptr_t)HEARTBEAT_STATE_OK, heartbeat_timer);
     xTimerStart(timer, portMAX_DELAY);
 }
 
 
-static void heartbeat_print_heap_status(void) {
-    ESP_LOGI(TAG, "Low water mark: %i, free memory %i", xPortGetMinimumEverFreeHeapSize(), xPortGetFreeHeapSize());
+void heartbeat_set_state(heartbeat_state_t state) {
+    vTimerSetTimerID(timer, (void *)(uintptr_t)state);
 }
