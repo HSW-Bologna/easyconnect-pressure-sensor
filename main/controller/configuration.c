@@ -12,6 +12,7 @@
 #define FEEDBACK_DIRECTION_KEY  "FBDIR"
 #define ACTIVATION_ATTEMPTS_KEY "ACTATT"
 #define FEEDBACK_DELAY_KEY      "FBDELAY"
+#define FEEDBACK_ENABLE_KEY     "FBENABLE"
 
 
 void configuration_init(model_t *pmodel) {
@@ -29,7 +30,7 @@ void configuration_init(model_t *pmodel) {
 
     uint8_t uint8_value = 0;
     if (load_uint8_option(&uint8_value, FEEDBACK_DIRECTION_KEY) == 0) {
-        model_set_feedback_level(pmodel, uint8_value);
+        model_set_feedback_direction(pmodel, uint8_value);
     }
     if (load_uint8_option(&uint8_value, ACTIVATION_ATTEMPTS_KEY) == 0) {
         model_set_output_attempts(pmodel, uint8_value);
@@ -60,7 +61,7 @@ void configuration_save_address(void *args, uint16_t value) {
 
 void configuration_save_feedback_direction(void *args, uint8_t value) {
     save_uint8_option(&value, FEEDBACK_DIRECTION_KEY);
-    model_set_feedback_level(args, value);
+    model_set_feedback_direction(args, value);
 }
 
 
@@ -73,4 +74,10 @@ void configuration_save_activation_attempts(void *args, uint8_t value) {
 void configuration_save_feedback_delay(void *args, uint8_t value) {
     save_uint8_option(&value, FEEDBACK_DELAY_KEY);
     model_set_feedback_delay(args, value);
+}
+
+
+void configuration_save_feedback_enable(void *args, uint8_t value) {
+    save_uint8_option(&value, FEEDBACK_ENABLE_KEY);
+    model_set_feedback_enabled(args, value);
 }

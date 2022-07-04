@@ -14,5 +14,6 @@ void         digin_init(void);
 int          digin_get(digin_t digin);
 int          digin_take_reading(void);
 unsigned int digin_get_inputs(void);
+uint8_t      digin_is_value_ready(void);
 
 #endif

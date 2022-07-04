@@ -218,7 +218,7 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                 }
 
                 case MODBUS_COIL:
-                    if (rele_update(args->value)) {
+                    if (rele_update(ctx->arg, args->value)) {
                         result->exceptionCode = MODBUS_EXCEP_SLAVE_FAILURE;
                     }
                     break;
@@ -246,7 +246,8 @@ static ModbusError exception_callback(const ModbusSlave *minion, uint8_t functio
 
 static LIGHTMODBUS_RET_ERROR initialization_function(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
                                                      uint8_t requestLength) {
-    rele_update(0);
+    easyconnect_interface_t *ctx = modbusSlaveGetUserPointer(minion);
+    rele_update(ctx->arg, 0);
     ESP_LOGI(TAG, "rele off");
     return MODBUS_NO_ERROR();
 }
@@ -262,7 +263,7 @@ static LIGHTMODBUS_RET_ERROR set_class_output(ModbusSlave *minion, uint8_t funct
     easyconnect_interface_t *ctx = modbusSlaveGetUserPointer(minion);
     uint16_t class               = requestPDU[1] << 8 | requestPDU[2];
     if (class == ctx->get_class(ctx->arg)) {
-        rele_update(requestPDU[3]);
+        rele_update(ctx->arg, requestPDU[3]);
     }
 
     return MODBUS_NO_ERROR();

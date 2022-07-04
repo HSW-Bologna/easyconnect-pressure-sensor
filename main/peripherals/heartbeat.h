@@ -13,6 +13,7 @@ typedef enum {
 
 void heartbeat_init(void);
 void heartbeat_set_state(heartbeat_state_t state);
+void heartbeat_signal(uint32_t new_blinks);
 
 
 #endif

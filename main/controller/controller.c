@@ -41,6 +41,7 @@ static const char *TAG = "Controller";
 
 
 void controller_init(model_t *pmodel) {
+    (void)TAG;
     context.arg = pmodel;
 
     configuration_init(pmodel);
@@ -53,26 +54,11 @@ void controller_init(model_t *pmodel) {
 
 
 void controller_manage(model_t *pmodel) {
-    static unsigned long timestamp = 0;
-
     minion_manage();
+    rele_manage(pmodel);
 
-    if (is_expired(timestamp, get_millis(), 100UL)) {
-        uint16_t class = model_get_class(pmodel);
-        switch (CLASS_GET_MODE(class)) {
-            case DEVICE_MODE_LIGHT:
-                if (safety_ok()) {
-                    heartbeat_set_state(HEARTBEAT_STATE_KO);
-                    digout_update(DIGOUT_LIGHT_SIGNAL, !rele_is_on());
-                } else {
-                    heartbeat_set_state(HEARTBEAT_STATE_OK);
-                    digout_update(DIGOUT_LIGHT_SIGNAL, 1);
-                }
-                break;
-        }
-
-        ESP_LOGD(TAG, "0x%X %i %i", class, digin_get(DIGIN_SAFETY), digin_get(DIGIN_SIGNAL));
-        timestamp = get_millis();
+    if (digin_is_value_ready()) {
+        rele_refresh(pmodel);
     }
 }
 

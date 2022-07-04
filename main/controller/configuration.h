@@ -13,6 +13,7 @@ void configuration_save_address(void *args, uint16_t value);
 void configuration_save_feedback_direction(void *args, uint8_t value);
 void configuration_save_activation_attempts(void *args, uint8_t value);
 void configuration_save_feedback_delay(void *args, uint8_t value);
+void configuration_save_feedback_enable(void *args, uint8_t value);
 
 
 #endif

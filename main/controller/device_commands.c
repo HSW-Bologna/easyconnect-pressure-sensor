@@ -71,7 +71,7 @@ static int device_commands_set_rele(int argc, char **argv) {
 
     int nerrors = arg_parse(argc, argv, argtable);
     if (nerrors == 0) {
-        rele_update(rele->ival[0]);
+        rele_update(model_ref, rele->ival[0]);
     } else {
         arg_print_errors(stdout, end, "Set rele' level");
     }
@@ -110,9 +110,13 @@ static int device_commands_read_feedback(int argc, char **argv) {
 
     int nerrors = arg_parse(argc, argv, argtable);
     if (nerrors == 0) {
+        if (model_get_feedback_enabled(model_ref)) {
         printf("Feedback direction=%i, Activation attempts=%i, Feedback delay=%i\n",
-               model_get_feedback_level(model_ref), model_get_output_attempts(model_ref),
+               model_get_feedback_direction(model_ref), model_get_output_attempts(model_ref),
                model_get_feedback_delay(model_ref));
+        } else {
+            printf("Feedback disabled\n");
+        }
     } else {
         arg_print_errors(stdout, end, "Read feedback parameters");
     }
@@ -123,11 +127,13 @@ static int device_commands_read_feedback(int argc, char **argv) {
 
 
 static int device_commands_set_feedback(int argc, char **argv) {
+    // TODO: add --off
     struct arg_int *dir, *att, *del;
-    struct arg_lit *help;
+    struct arg_lit *help, *off;
     struct arg_end *end;
     void           *argtable[] = {
-        help = arg_litn(NULL, "help", 0, 1, "display this help and exit"),
+        help = arg_litn("h", "help", 0, 1, "display this help and exit"),
+        off  = arg_litn("o", "off", 0, 1, "disable the feedback mechanism"),
         dir  = arg_int1(NULL, NULL, "<feedback direction>",
                                   "Direction of the feedback signal (0=active low, 1=active high)"),
         att = arg_int1(NULL, NULL, "<activation attempts>", "Number of attempts to activate the output (1-8)"),
@@ -136,33 +142,39 @@ static int device_commands_set_feedback(int argc, char **argv) {
     };
 
     int nerrors = arg_parse(argc, argv, argtable);
-    if (nerrors == 0) {
-        if (help->count > 0) {
-            printf("Usage:");
-            arg_print_syntax(stdout, argtable, "\n");
-            printf("\n");
-            arg_print_glossary(stdout, argtable, "  %-25s %s\n");
+    if (help->count > 0) {
+        printf("Usage:");
+        arg_print_syntax(stdout, argtable, "\n");
+        printf("\n");
+        arg_print_glossary(stdout, argtable, "  %-25s %s\n");
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        return ESP_OK;
+    } else if (off->count > 0) {
+        configuration_save_feedback_enable(model_ref, 0);
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        return ESP_OK;
+    } else if (nerrors == 0) {
+        configuration_save_feedback_enable(model_ref, 1);
+
+        uint8_t feedback_direction = (uint8_t)dir->ival[0];
+        if (feedback_direction > EASYCONNECT_PARAMETER_MAX_FEEDBACK_DIRECTION) {
+            printf("Invalid feedback direction value: %i\n", feedback_direction);
         } else {
-            uint8_t feedback_direction = (uint8_t)dir->ival[0];
-            if (feedback_direction > EASYCONNECT_PARAMETER_MAX_FEEDBACK_DIRECTION) {
-                printf("Invalid feedback direction value: %i\n", feedback_direction);
-            } else {
-                configuration_save_feedback_direction(model_ref, feedback_direction);
-            }
+            configuration_save_feedback_direction(model_ref, feedback_direction);
+        }
 
-            uint8_t activation_attempts = (uint8_t)att->ival[0];
-            if (activation_attempts > EASYCONNECT_PARAMETER_MAX_ACTIVATION_ATTEMPTS) {
-                printf("Invalid activation attempts value: %i\n", activation_attempts);
-            } else {
-                configuration_save_activation_attempts(model_ref, activation_attempts);
-            }
+        uint8_t activation_attempts = (uint8_t)att->ival[0];
+        if (activation_attempts > EASYCONNECT_PARAMETER_MAX_ACTIVATION_ATTEMPTS) {
+            printf("Invalid activation attempts value: %i\n", activation_attempts);
+        } else {
+            configuration_save_activation_attempts(model_ref, activation_attempts);
+        }
 
-            uint8_t feedback_delay = (uint8_t)del->ival[0];
-            if (feedback_delay > EASYCONNECT_PARAMETER_MAX_FEEDBACK_DELAY) {
-                printf("Invalid feedback delay value: %i\n", feedback_delay);
-            } else {
-                configuration_save_feedback_delay(model_ref, feedback_delay);
-            }
+        uint8_t feedback_delay = (uint8_t)del->ival[0];
+        if (feedback_delay > EASYCONNECT_PARAMETER_MAX_FEEDBACK_DELAY) {
+            printf("Invalid feedback delay value: %i\n", feedback_delay);
+        } else {
+            configuration_save_feedback_delay(model_ref, feedback_delay);
         }
     } else {
         arg_print_errors(stdout, end, "Set feedback");

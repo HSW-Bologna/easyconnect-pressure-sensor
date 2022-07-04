@@ -1,5 +1,3 @@
-#include "freertos/portmacro.h"
-#include "freertos/projdefs.h"
 #include "hal/gpio_types.h"
 #include "peripherals/hardwareprofile.h"
 #include "peripherals/digin.h"
@@ -14,10 +12,16 @@
 #include "freertos/semphr.h"
 #include "esp_log.h"
 #include "freertos/timers.h"
+#include "freertos/event_groups.h"
 #include "digin.h"
 
-static debounce_filter_t filter;
-static SemaphoreHandle_t sem;
+
+#define EVENT_NEW_INPUT 0x01
+
+
+static debounce_filter_t  filter;
+static SemaphoreHandle_t  sem;
+static EventGroupHandle_t events;
 
 
 static void periodic_read(TimerHandle_t timer);
@@ -32,10 +36,16 @@ void digin_init(void) {
     io_conf.pull_up_en    = 0;
     gpio_config(&io_conf);
 
-    debounce_filter_init(&filter);
-    sem = xSemaphoreCreateMutex();
+    static StaticEventGroup_t event_group_buffer;
+    events = xEventGroupCreateStatic(&event_group_buffer);
 
-    TimerHandle_t timer = xTimerCreate("timerInput", pdMS_TO_TICKS(5), pdTRUE, NULL, periodic_read);
+    debounce_filter_init(&filter);
+    static StaticSemaphore_t semaphore_buffer;
+    sem = xSemaphoreCreateMutexStatic(&semaphore_buffer);
+
+    static StaticTimer_t timer_buffer;
+    TimerHandle_t        timer =
+        xTimerCreateStatic("timerInput", pdMS_TO_TICKS(5), pdTRUE, NULL, periodic_read, &timer_buffer);
     xTimerStart(timer, portMAX_DELAY);
 }
 
@@ -62,9 +72,18 @@ unsigned int digin_get_inputs(void) {
 }
 
 
+uint8_t digin_is_value_ready(void) {
+    uint8_t res = xEventGroupGetBits(events) & EVENT_NEW_INPUT;
+    xEventGroupClearBits(events, EVENT_NEW_INPUT);
+    return res > 0;
+}
+
+
 static void periodic_read(TimerHandle_t timer) {
     (void)timer;
     xSemaphoreTake(sem, portMAX_DELAY);
-    digin_take_reading();
+    if (digin_take_reading()) {
+        xEventGroupSetBits(events, EVENT_NEW_INPUT);
+    }
     xSemaphoreGive(sem);
 }

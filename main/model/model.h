@@ -79,7 +79,8 @@ typedef struct {
     uint16_t class;
     uint16_t serial_number;
 
-    uint8_t feedback_level;
+    uint8_t feedback_enabled;
+    uint8_t feedback_direction;
     uint8_t output_attempts;
     uint8_t feedback_delay;
 } model_t;
@@ -90,7 +91,8 @@ void model_init(model_t *model);
 GETTERNSETTER_GENERIC(address, address);
 GETTERNSETTER_GENERIC(class, class);
 GETTERNSETTER_GENERIC(serial_number, serial_number);
-GETTERNSETTER(feedback_level, feedback_level);
+GETTERNSETTER(feedback_enabled, feedback_enabled);
+GETTERNSETTER(feedback_direction, feedback_direction);
 GETTERNSETTER(output_attempts, output_attempts);
 GETTERNSETTER(feedback_delay, feedback_delay);
 
