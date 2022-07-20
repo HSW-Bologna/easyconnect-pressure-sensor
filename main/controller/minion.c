@@ -18,11 +18,9 @@
 #include "peripherals/rs485.h"
 #include "easyconnect.h"
 #include "model/model.h"
-#include "rele.h"
 #include "safety.h"
+#include "config/app_config.h"
 
-
-#define REG_COUNT 3
 
 static const char *TAG = "Minion";
 ModbusSlave        minion;
@@ -32,9 +30,6 @@ static ModbusError           register_callback(const ModbusSlave *status, const 
 static ModbusError           exception_callback(const ModbusSlave *minion, uint8_t function, ModbusExceptionCode code);
 static LIGHTMODBUS_RET_ERROR initialization_function(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
                                                      uint8_t requestLength);
-static LIGHTMODBUS_RET_ERROR set_class_output(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
-                                              uint8_t requestLength);
-
 
 static const ModbusSlaveFunctionHandler custom_functions[] = {
 #if defined(LIGHTMODBUS_F01S) || defined(LIGHTMODBUS_SLAVE_FULL)
@@ -67,8 +62,7 @@ static const ModbusSlaveFunctionHandler custom_functions[] = {
 
     {EASYCONNECT_FUNCTION_CODE_CONFIG_ADDRESS, easyconnect_set_address_function},
     {EASYCONNECT_FUNCTION_CODE_RANDOM_SERIAL_NUMBER, easyconnect_send_address_function},
-    {EASYCONNECT_FUNCTION_CODE_NETWORK_INIZIALIZATION, initialization_function},
-    {EASYCONNECT_FUNCTION_CODE_SET_CLASS_OUTPUT, set_class_output},
+    {EASYCONNECT_FUNCTION_CODE_NETWORK_INITIALIZATION, initialization_function},
 
     // Guard - prevents 0 array size
     {0, NULL},
@@ -174,6 +168,12 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                             result->value = ctx->get_address(ctx->arg);
                             break;
 
+                        case EASYCONNECT_HOLDING_REGISTER_FIRMWARE_VERSION:
+                            result->value = EASYCONNECT_FIRMWARE_VERSION(APP_CONFIG_FIRMWARE_VERSION_MAJOR,
+                                                                         APP_CONFIG_FIRMWARE_VERSION_MINOR,
+                                                                         APP_CONFIG_FIRMWARE_VERSION_PATCH);
+                            break;
+
                         case EASYCONNECT_HOLDING_REGISTER_CLASS:
                             result->value = ctx->get_class(ctx->arg);
                             break;
@@ -183,7 +183,7 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                             break;
 
                         case EASYCONNECT_HOLDING_REGISTER_ALARMS:
-                            result->value = !safety_ok();
+                            result->value = !safety_ok(ctx->arg);
                             break;
                     }
                     break;
@@ -218,9 +218,6 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                 }
 
                 case MODBUS_COIL:
-                    if (rele_update(ctx->arg, args->value)) {
-                        result->exceptionCode = MODBUS_EXCEP_SLAVE_FAILURE;
-                    }
                     break;
 
                 case MODBUS_INPUT_REGISTER:
@@ -246,25 +243,5 @@ static ModbusError exception_callback(const ModbusSlave *minion, uint8_t functio
 
 static LIGHTMODBUS_RET_ERROR initialization_function(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
                                                      uint8_t requestLength) {
-    easyconnect_interface_t *ctx = modbusSlaveGetUserPointer(minion);
-    rele_update(ctx->arg, 0);
-    ESP_LOGI(TAG, "rele off");
-    return MODBUS_NO_ERROR();
-}
-
-
-static LIGHTMODBUS_RET_ERROR set_class_output(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
-                                              uint8_t requestLength) {
-    // Check request length
-    if (requestLength < 3) {
-        return modbusBuildException(minion, function, MODBUS_EXCEP_ILLEGAL_VALUE);
-    }
-
-    easyconnect_interface_t *ctx = modbusSlaveGetUserPointer(minion);
-    uint16_t class               = requestPDU[1] << 8 | requestPDU[2];
-    if (class == ctx->get_class(ctx->arg)) {
-        rele_update(ctx->arg, requestPDU[3]);
-    }
-
     return MODBUS_NO_ERROR();
 }

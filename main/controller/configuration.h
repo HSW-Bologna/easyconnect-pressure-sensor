@@ -8,12 +8,10 @@
 
 void configuration_init(model_t *pmodel);
 void configuration_save_serial_number(void *args, uint16_t value);
-void configuration_save_class(void *args, uint16_t value);
+int  configuration_save_class(void *args, uint16_t value);
 void configuration_save_address(void *args, uint16_t value);
-void configuration_save_feedback_direction(void *args, uint8_t value);
-void configuration_save_activation_attempts(void *args, uint8_t value);
-void configuration_save_feedback_delay(void *args, uint8_t value);
-void configuration_save_feedback_enable(void *args, uint8_t value);
+int  configuration_save_minimum_pressure(void *args, uint16_t value);
+int  configuration_save_maximum_pressure(void *args, uint16_t value);
 
 
 #endif

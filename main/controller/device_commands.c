@@ -10,14 +10,14 @@
 #include "peripherals/digin.h"
 #include "model/model.h"
 #include "configuration.h"
-#include "rele.h"
+#include "sensors.h"
 
 
-static int device_commands_set_rele(int argc, char **argv);
-static int device_commands_read_inputs(int argc, char **argv);
-static int device_commands_read_inputs(int argc, char **argv);
-static int device_commands_read_feedback(int argc, char **argv);
-static int device_commands_set_feedback(int argc, char **argv);
+static int command_read_sensors(int argc, char **argv);
+static int command_read_min_pressure(int argc, char **argv);
+static int command_set_min_pressure(int argc, char **argv);
+static int command_read_max_pressure(int argc, char **argv);
+static int command_set_max_pressure(int argc, char **argv);
 
 
 static model_t *model_ref = NULL;
@@ -26,158 +26,144 @@ static model_t *model_ref = NULL;
 void device_commands_register(model_t *pmodel) {
     model_ref = pmodel;
 
-    const esp_console_cmd_t rele_cmd = {
-        .command = "SetRele",
-        .help    = "Set rele' level",
+    const esp_console_cmd_t read_sensors = {
+        .command = "ReadSensors",
+        .help    = "Read the currently read sensors values",
         .hint    = NULL,
-        .func    = &device_commands_set_rele,
+        .func    = &command_read_sensors,
     };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&rele_cmd));
+    ESP_ERROR_CHECK(esp_console_cmd_register(&read_sensors));
 
-    const esp_console_cmd_t signal_cmd = {
-        .command = "ReadSignals",
-        .help    = "Read signals levels",
+    const esp_console_cmd_t read_min_pressure = {
+        .command = "ReadMinPressure",
+        .help    = "Read the configured minimum pressure",
         .hint    = NULL,
-        .func    = &device_commands_read_inputs,
+        .func    = &command_read_min_pressure,
     };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&signal_cmd));
+    ESP_ERROR_CHECK(esp_console_cmd_register(&read_min_pressure));
 
-    const esp_console_cmd_t read_feedback = {
-        .command = "ReadFB",
-        .help    = "Print the current device feedback configuration",
+    const esp_console_cmd_t set_min_pressure = {
+        .command = "SetMinPressure",
+        .help    = "Set the configured minimum pressure",
         .hint    = NULL,
-        .func    = &device_commands_read_feedback,
+        .func    = &command_set_min_pressure,
     };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&read_feedback));
+    ESP_ERROR_CHECK(esp_console_cmd_register(&set_min_pressure));
 
-    const esp_console_cmd_t set_feedback = {
-        .command = "SetFB",
-        .help    = "Set a new feedback configuration",
+    const esp_console_cmd_t read_max_pressure = {
+        .command = "ReadMaxPressure",
+        .help    = "Read the configured maximum pressure",
         .hint    = NULL,
-        .func    = &device_commands_set_feedback,
+        .func    = &command_read_max_pressure,
     };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&set_feedback));
+    ESP_ERROR_CHECK(esp_console_cmd_register(&read_max_pressure));
+
+    const esp_console_cmd_t set_max_pressure = {
+        .command = "SetMaxPressure",
+        .help    = "Set the configured maximum pressure",
+        .hint    = NULL,
+        .func    = &command_set_max_pressure,
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&set_max_pressure));
 }
 
 
-static int device_commands_set_rele(int argc, char **argv) {
-    struct arg_end *end;
-    struct arg_int *rele;
-    /* the global arg_xxx structs are initialised within the argtable */
-    void *argtable[] = {
-        rele = arg_int1(NULL, NULL, "<value>", "Rele' level"),
-        end  = arg_end(1),
-    };
-
-    int nerrors = arg_parse(argc, argv, argtable);
-    if (nerrors == 0) {
-        rele_update(model_ref, rele->ival[0]);
-    } else {
-        arg_print_errors(stdout, end, "Set rele' level");
-    }
-
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return nerrors ? -1 : 0;
-}
-
-
-static int device_commands_read_inputs(int argc, char **argv) {
-    struct arg_end *end;
-    /* the global arg_xxx structs are initialised within the argtable */
-    void *argtable[] = {
-        end = arg_end(1),
-    };
-
-    int nerrors = arg_parse(argc, argv, argtable);
-    if (nerrors == 0) {
-        uint8_t value = (uint8_t)digin_get_inputs();
-        printf("Safety=%i, Signal=%i\n", (value & 0x01) > 0, (value & 0x02) > 0);
-    } else {
-        arg_print_errors(stdout, end, "Read device inputs");
-    }
-
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return nerrors ? -1 : 0;
-}
-
-
-static int device_commands_read_feedback(int argc, char **argv) {
-    struct arg_end *end;
-    /* the global arg_xxx structs are initialised within the argtable */
-    void *argtable[] = {
-        end = arg_end(1),
-    };
-
-    int nerrors = arg_parse(argc, argv, argtable);
-    if (nerrors == 0) {
-        if (model_get_feedback_enabled(model_ref)) {
-        printf("Feedback direction=%i, Activation attempts=%i, Feedback delay=%i\n",
-               model_get_feedback_direction(model_ref), model_get_output_attempts(model_ref),
-               model_get_feedback_delay(model_ref));
-        } else {
-            printf("Feedback disabled\n");
-        }
-    } else {
-        arg_print_errors(stdout, end, "Read feedback parameters");
-    }
-
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return nerrors ? -1 : 0;
-}
-
-
-static int device_commands_set_feedback(int argc, char **argv) {
-    // TODO: add --off
-    struct arg_int *dir, *att, *del;
-    struct arg_lit *help, *off;
+static int command_read_sensors(int argc, char **argv) {
     struct arg_end *end;
     void           *argtable[] = {
-        help = arg_litn("h", "help", 0, 1, "display this help and exit"),
-        off  = arg_litn("o", "off", 0, 1, "disable the feedback mechanism"),
-        dir  = arg_int1(NULL, NULL, "<feedback direction>",
-                                  "Direction of the feedback signal (0=active low, 1=active high)"),
-        att = arg_int1(NULL, NULL, "<activation attempts>", "Number of attempts to activate the output (1-8)"),
-        del = arg_int1(NULL, NULL, "<feedback delay>", "Delay of the feedback check (1-8 seconds)"),
-        end = arg_end(8),
+        end = arg_end(1),
     };
 
     int nerrors = arg_parse(argc, argv, argtable);
-    if (help->count > 0) {
-        printf("Usage:");
-        arg_print_syntax(stdout, argtable, "\n");
-        printf("\n");
-        arg_print_glossary(stdout, argtable, "  %-25s %s\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return ESP_OK;
-    } else if (off->count > 0) {
-        configuration_save_feedback_enable(model_ref, 0);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return ESP_OK;
-    } else if (nerrors == 0) {
-        configuration_save_feedback_enable(model_ref, 1);
+    if (nerrors == 0) {
+        double temperature = 0;
+        double pressure    = 0;
 
-        uint8_t feedback_direction = (uint8_t)dir->ival[0];
-        if (feedback_direction > EASYCONNECT_PARAMETER_MAX_FEEDBACK_DIRECTION) {
-            printf("Invalid feedback direction value: %i\n", feedback_direction);
-        } else {
-            configuration_save_feedback_direction(model_ref, feedback_direction);
-        }
+        sensors_read(&temperature, &pressure);
 
-        uint8_t activation_attempts = (uint8_t)att->ival[0];
-        if (activation_attempts > EASYCONNECT_PARAMETER_MAX_ACTIVATION_ATTEMPTS) {
-            printf("Invalid activation attempts value: %i\n", activation_attempts);
-        } else {
-            configuration_save_activation_attempts(model_ref, activation_attempts);
-        }
+        printf("%4.2f C\n%4.2f Bar\n", temperature, pressure);
+    } else {
+        arg_print_errors(stdout, end, "Read sensors values");
+    }
 
-        uint8_t feedback_delay = (uint8_t)del->ival[0];
-        if (feedback_delay > EASYCONNECT_PARAMETER_MAX_FEEDBACK_DELAY) {
-            printf("Invalid feedback delay value: %i\n", feedback_delay);
-        } else {
-            configuration_save_feedback_delay(model_ref, feedback_delay);
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return nerrors ? -1 : 0;
+}
+
+
+static int command_set_max_pressure(int argc, char **argv) {
+    struct arg_end *end;
+    struct arg_int *press;
+    void           *argtable[] = {
+        press = arg_int1(NULL, NULL, "<int>", "Maximum pressure"),
+        end   = arg_end(1),
+    };
+
+    int nerrors = arg_parse(argc, argv, argtable);
+    if (nerrors == 0) {
+        if (configuration_save_maximum_pressure(model_ref, press->ival[0])) {
+            printf("Invalid value!\n");
         }
     } else {
-        arg_print_errors(stdout, end, "Set feedback");
+        arg_print_errors(stdout, end, "Set maximum pressure");
+    }
+
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return nerrors ? -1 : 0;
+}
+
+
+static int command_read_max_pressure(int argc, char **argv) {
+    struct arg_end *end;
+    void           *argtable[] = {
+        end = arg_end(1),
+    };
+
+    int nerrors = arg_parse(argc, argv, argtable);
+    if (nerrors == 0) {
+        printf("%i mBar\n", model_get_maximum_pressure(model_ref));
+    } else {
+        arg_print_errors(stdout, end, "Read maximum pressure");
+    }
+
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return nerrors ? -1 : 0;
+}
+
+
+static int command_set_min_pressure(int argc, char **argv) {
+    struct arg_end *end;
+    struct arg_int *press;
+    void           *argtable[] = {
+        press = arg_int1(NULL, NULL, "<int>", "Minimum pressure"),
+        end   = arg_end(1),
+    };
+
+    int nerrors = arg_parse(argc, argv, argtable);
+    if (nerrors == 0) {
+        if (configuration_save_minimum_pressure(model_ref, press->ival[0])) {
+            printf("Invalid value!\n");
+        }
+    } else {
+        arg_print_errors(stdout, end, "Set minimum pressure");
+    }
+
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return nerrors ? -1 : 0;
+}
+
+
+static int command_read_min_pressure(int argc, char **argv) {
+    struct arg_end *end;
+    void           *argtable[] = {
+        end = arg_end(1),
+    };
+
+    int nerrors = arg_parse(argc, argv, argtable);
+    if (nerrors == 0) {
+        printf("%i mBar\n", model_get_minimum_pressure(model_ref));
+    } else {
+        arg_print_errors(stdout, end, "Read minimum pressure");
     }
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));

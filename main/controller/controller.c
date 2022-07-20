@@ -17,7 +17,8 @@
 #include "esp_log.h"
 #include "device_commands.h"
 #include "safety.h"
-#include "rele.h"
+#include "approval.h"
+#include "sensors.h"
 
 
 static void    console_task(void *args);
@@ -44,6 +45,8 @@ void controller_init(model_t *pmodel) {
     (void)TAG;
     context.arg = pmodel;
 
+    sensors_init();
+
     configuration_init(pmodel);
     minion_init(&context);
 
@@ -54,11 +57,17 @@ void controller_init(model_t *pmodel) {
 
 
 void controller_manage(model_t *pmodel) {
-    minion_manage();
-    rele_manage(pmodel);
+    static unsigned long timestamp = 0;
 
-    if (digin_is_value_ready()) {
-        rele_refresh(pmodel);
+    minion_manage();
+
+    if (is_expired(timestamp, get_millis(), 500UL)) {
+        if (safety_ok(pmodel)) {
+            approval_on();
+        } else {
+            approval_off();
+        }
+        timestamp = get_millis();
     }
 }
 

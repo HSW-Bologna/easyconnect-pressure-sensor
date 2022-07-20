@@ -21,7 +21,10 @@ static const char *TAG = "Main";
 void app_main(void) {
     model_t model;
 
+    esp_log_level_set("*", ESP_LOG_NONE);
+
     system_random_init();
+    system_i2c_init();
     storage_init();
     rs485_init(EASYCONNECT_BAUDRATE);
     digin_init();

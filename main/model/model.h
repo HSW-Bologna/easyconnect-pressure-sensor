@@ -6,16 +6,8 @@
 
 
 #define EASYCONNECT_DEFAULT_MINION_ADDRESS       1
-#define EASYCONNECT_DEFAULT_MINION_SERIAL_NUMBER 2
-#define EASYCONNECT_DEFAULT_MINION_MODEL         0x0101
-#define EASYCONNECT_DEFAULT_FEEDBACK_LEVEL       0x0
-#define EASYCONNECT_DEFAULT_ACTIVATE_ATTEMPTS    1
-#define EASYCONNECT_DEFAULT_FEEDBACK_DELAY       4
-
-#define EASYCONNECT_PARAMETER_MAX_FEEDBACK_DIRECTION  1
-#define EASYCONNECT_PARAMETER_MAX_ACTIVATION_ATTEMPTS 8
-#define EASYCONNECT_PARAMETER_MAX_FEEDBACK_DELAY      8
-
+#define EASYCONNECT_DEFAULT_MINION_SERIAL_NUMBER 3
+#define EASYCONNECT_DEFAULT_DEVICE_CLASS         CLASS(DEVICE_MODE_PRESSURE_SAFETY, DEVICE_GROUP_NONE)
 
 #define GETTER_UNSAFE(name, field)                                                                                     \
     static inline __attribute__((always_inline)) typeof(((model_t *)0)->field) model_get_##name(model_t *pmodel) {     \
@@ -79,21 +71,21 @@ typedef struct {
     uint16_t class;
     uint16_t serial_number;
 
-    uint8_t feedback_enabled;
-    uint8_t feedback_direction;
-    uint8_t output_attempts;
-    uint8_t feedback_delay;
+    uint16_t minimum_pressure;
+    uint16_t maximum_pressure;
 } model_t;
 
 
-void model_init(model_t *model);
+void     model_init(model_t *model);
+uint16_t model_get_class(void *arg);
+int      model_set_class(void *arg, uint16_t class, uint16_t *out_class);
+uint8_t  model_is_pressure_ok(model_t *pmodel, uint16_t pressure);
+int      model_set_minimum_pressure(model_t *pmodel, uint16_t pressure);
+int      model_set_maximum_pressure(model_t *pmodel, uint16_t pressure);
 
 GETTERNSETTER_GENERIC(address, address);
-GETTERNSETTER_GENERIC(class, class);
 GETTERNSETTER_GENERIC(serial_number, serial_number);
-GETTERNSETTER(feedback_enabled, feedback_enabled);
-GETTERNSETTER(feedback_direction, feedback_direction);
-GETTERNSETTER(output_attempts, output_attempts);
-GETTERNSETTER(feedback_delay, feedback_delay);
+GETTER(model_t, minimum_pressure, minimum_pressure);
+GETTER(model_t, maximum_pressure, maximum_pressure);
 
 #endif

@@ -3,6 +3,7 @@
 
 
 void system_random_init(void);
+void system_i2c_init(void);
 
 
 #endif

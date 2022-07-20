@@ -16,3 +16,6 @@
 [submodule "components/easyconnect-device"]
 	path = components/easyconnect-device
 	url = https://github.com/HSW-Bologna/easyconnect-device.git
+[submodule "components/I2C"]
+	path = components/I2C
+	url = https://github.com/Maldus512/I2C.git
