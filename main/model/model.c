@@ -1,3 +1,4 @@
+#include <string.h>
 #include "model.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -18,6 +19,12 @@ void model_init(model_t *pmodel) {
 
     pmodel->minimum_pressure = APP_CONFIG_DEFAULT_MINIMUM_PRESSURE_THRESHOLD;
     pmodel->maximum_pressure = APP_CONFIG_DEFAULT_MAXIMUM_PRESSURE_THRESHOLD;
+    pmodel->pressure         = 0;
+
+    pmodel->missing_heartbeat = 0;
+
+    memset(pmodel->minimum_pressure_message, 0, sizeof(pmodel->minimum_pressure_message));
+    memset(pmodel->maximum_pressure_message, 0, sizeof(pmodel->maximum_pressure_message));
 }
 
 
@@ -88,15 +95,47 @@ int model_set_maximum_pressure(model_t *pmodel, uint16_t pressure) {
 }
 
 
-uint8_t model_is_pressure_ok(model_t *pmodel, uint16_t pressure) {
+uint8_t model_is_pressure_ok(model_t *pmodel) {
     assert(pmodel != NULL);
     uint8_t res = 0;
 
+    uint16_t pressure = (model_get_pressure(pmodel) / 10) + 1000;
+
     xSemaphoreTake(pmodel->sem, portMAX_DELAY);
-    res = pmodel->minimum_pressure < pressure && pressure < pmodel->minimum_pressure;
+    res = pmodel->minimum_pressure < pressure && pressure < pmodel->maximum_pressure;
     xSemaphoreGive(pmodel->sem);
 
     return res;
+}
+
+
+void model_get_minimum_pressure_message(void *args, char *string) {
+    model_t *pmodel = args;
+    xSemaphoreTake(pmodel->sem, portMAX_DELAY);
+    strcpy(string, pmodel->minimum_pressure_message);
+    xSemaphoreGive(pmodel->sem);
+}
+
+
+void model_set_minimum_pressure_message(model_t *pmodel, const char *string) {
+    xSemaphoreTake(pmodel->sem, portMAX_DELAY);
+    snprintf(pmodel->minimum_pressure_message, sizeof(pmodel->minimum_pressure_message), "%s", string);
+    xSemaphoreGive(pmodel->sem);
+}
+
+
+void model_get_maximum_pressure_message(void *args, char *string) {
+    model_t *pmodel = args;
+    xSemaphoreTake(pmodel->sem, portMAX_DELAY);
+    strcpy(string, pmodel->maximum_pressure_message);
+    xSemaphoreGive(pmodel->sem);
+}
+
+
+void model_set_maximum_pressure_message(model_t *pmodel, const char *string) {
+    xSemaphoreTake(pmodel->sem, portMAX_DELAY);
+    snprintf(pmodel->maximum_pressure_message, sizeof(pmodel->maximum_pressure_message), "%s", string);
+    xSemaphoreGive(pmodel->sem);
 }
 
 

@@ -1,3 +1,4 @@
+#include <string.h>
 #include <assert.h>
 #include <stdio.h>
 #include "esp_log.h"
@@ -7,11 +8,13 @@
 #include "configuration.h"
 
 
-#define ADDRESS_KEY          "indirizzo"
-#define SERIAL_NUM_KEY       "numeroseriale"
-#define MODEL_KEY            "CLASS"
-#define MINIMUM_PRESSURE_KEY "MINPRESS"
-#define MAXIMUM_PRESSURE_KEY "MAXPRESS"
+#define ADDRESS_KEY                  "indirizzo"
+#define SERIAL_NUM_KEY               "numeroseriale"
+#define MODEL_KEY                    "CLASS"
+#define MINIMUM_PRESSURE_KEY         "MINPRESS"
+#define MAXIMUM_PRESSURE_KEY         "MAXPRESS"
+#define MINIMUM_PRESSURE_MESSAGE_KEY "MINPRESSMSG"
+#define MAXIMUM_PRESSURE_MESSAGE_KEY "MAXPRESSMSG"
 
 
 void configuration_init(model_t *pmodel) {
@@ -32,6 +35,11 @@ void configuration_init(model_t *pmodel) {
     if (load_uint16_option(&value, MAXIMUM_PRESSURE_KEY) == 0) {
         model_set_maximum_pressure(pmodel, value);
     }
+
+    load_blob_option(pmodel->minimum_pressure_message, sizeof(pmodel->minimum_pressure_message),
+                     MINIMUM_PRESSURE_MESSAGE_KEY);
+    load_blob_option(pmodel->maximum_pressure_message, sizeof(pmodel->maximum_pressure_message),
+                     MAXIMUM_PRESSURE_MESSAGE_KEY);
 }
 
 
@@ -69,10 +77,22 @@ int configuration_save_minimum_pressure(void *args, uint16_t value) {
 
 
 int configuration_save_maximum_pressure(void *args, uint16_t value) {
-    if (model_set_maximum_pressure(args, value)) {
+    if (model_set_maximum_pressure(args, value) == 0) {
         save_uint16_option(&value, MAXIMUM_PRESSURE_KEY);
         return 0;
     } else {
         return -1;
     }
+}
+
+
+void configuration_save_minimum_pressure_message(void *args, const char *string) {
+    save_blob_option((char *)string, strlen(string), MINIMUM_PRESSURE_MESSAGE_KEY);
+    model_set_minimum_pressure_message(args, string);
+}
+
+
+void configuration_save_maximum_pressure_message(void *args, const char *string) {
+    save_blob_option((char *)string, strlen(string), MAXIMUM_PRESSURE_MESSAGE_KEY);
+    model_set_maximum_pressure_message(args, string);
 }

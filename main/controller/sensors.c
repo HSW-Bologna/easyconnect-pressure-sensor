@@ -59,18 +59,27 @@ void sensors_read(double *temperature, double *pressure) {
 
 
 static void read_timer(TimerHandle_t timer) {
-    xSemaphoreTake(sem, portMAX_DELAY);
-    int res = ms5837_read_temperature_adc(press_driver, MS5837_OSR_8192, &temperature_adc_buffer[sample_index]);
-    res     = res || ms5837_read_pressure_adc(press_driver, MS5837_OSR_8192, &pressure_adc_buffer[sample_index]);
+    static uint16_t retry_counter   = 0;
+    uint32_t        temperature_adc = 0, pressure_adc = 0;
+    int             res = ms5837_read_temperature_adc(press_driver, MS5837_OSR_8192, &temperature_adc);
+    res                 = res || ms5837_read_pressure_adc(press_driver, MS5837_OSR_8192, &pressure_adc);
 
-    if (res == 0) {
+    if (res) {
+        ESP_LOGW(TAG, "Error reading sensor: %i", res);
+        if ((retry_counter++ % 10) == 0) {
+            ms5837_init(press_driver, &ms5837_data);
+        }
+    } else {
+        retry_counter = 0;
+
+        xSemaphoreTake(sem, portMAX_DELAY);
+        temperature_adc_buffer[sample_index] = temperature_adc;
+        pressure_adc_buffer[sample_index]    = pressure_adc;
         sample_index++;
         if (sample_index >= NUM_SAMPLES) {
             full_circle  = 1;
             sample_index = 0;
         }
-    } else {
-        ESP_LOGW(TAG, "Error reading sensor: %i", res);
+        xSemaphoreGive(sem);
     }
-    xSemaphoreGive(sem);
 }

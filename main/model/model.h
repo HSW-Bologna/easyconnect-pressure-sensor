@@ -3,11 +3,12 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "easyconnect_interface.h"
 
 
 #define EASYCONNECT_DEFAULT_MINION_ADDRESS       1
 #define EASYCONNECT_DEFAULT_MINION_SERIAL_NUMBER 3
-#define EASYCONNECT_DEFAULT_DEVICE_CLASS         CLASS(DEVICE_MODE_PRESSURE_SAFETY, DEVICE_GROUP_NONE)
+#define EASYCONNECT_DEFAULT_DEVICE_CLASS         CLASS(DEVICE_MODE_PRESSURE_SAFETY, DEVICE_GROUP_1)
 
 #define GETTER_UNSAFE(name, field)                                                                                     \
     static inline __attribute__((always_inline)) typeof(((model_t *)0)->field) model_get_##name(model_t *pmodel) {     \
@@ -67,24 +68,38 @@ typedef struct {
     StaticSemaphore_t semaphore_buffer;
     SemaphoreHandle_t sem;
 
+    uint8_t missing_heartbeat;
+
     uint16_t address;
     uint16_t class;
     uint16_t serial_number;
 
     uint16_t minimum_pressure;
     uint16_t maximum_pressure;
+
+    char minimum_pressure_message[EASYCONNECT_MESSAGE_SIZE + 1];
+    char maximum_pressure_message[EASYCONNECT_MESSAGE_SIZE + 1];
+
+    uint16_t pressure;
 } model_t;
 
 
 void     model_init(model_t *model);
 uint16_t model_get_class(void *arg);
 int      model_set_class(void *arg, uint16_t class, uint16_t *out_class);
-uint8_t  model_is_pressure_ok(model_t *pmodel, uint16_t pressure);
+uint8_t  model_is_pressure_ok(model_t *pmodel);
 int      model_set_minimum_pressure(model_t *pmodel, uint16_t pressure);
 int      model_set_maximum_pressure(model_t *pmodel, uint16_t pressure);
+void     model_get_minimum_pressure_message(void *args, char *string);
+void     model_set_minimum_pressure_message(model_t *pmodel, const char *string);
+void     model_get_maximum_pressure_message(void *args, char *string);
+void     model_set_maximum_pressure_message(model_t *pmodel, const char *string);
+
 
 GETTERNSETTER_GENERIC(address, address);
 GETTERNSETTER_GENERIC(serial_number, serial_number);
+GETTERNSETTER_GENERIC(pressure, pressure);
+GETTERNSETTER_GENERIC(missing_heartbeat, missing_heartbeat);
 GETTER(model_t, minimum_pressure, minimum_pressure);
 GETTER(model_t, maximum_pressure, maximum_pressure);
 

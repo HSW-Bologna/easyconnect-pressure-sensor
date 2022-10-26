@@ -1,3 +1,4 @@
+#include <sys/time.h>
 #include <assert.h>
 #include "minion.h"
 #include "config/app_config.h"
@@ -10,6 +11,8 @@
 #include "lightmodbus/lightmodbus.h"
 #include "lightmodbus/slave.h"
 #include "lightmodbus/slave_func.h"
+#include "gel/timer/timecheck.h"
+#include "utils/utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "configuration.h"
@@ -20,16 +23,29 @@
 #include "model/model.h"
 #include "safety.h"
 #include "config/app_config.h"
+#include "gel/serializer/serializer.h"
 
 
-static const char *TAG = "Minion";
-ModbusSlave        minion;
+#define HOLDING_REGISTER_MINIMUM_PRESSURE_MESSAGE EASYCONNECT_HOLDING_REGISTER_MESSAGE_1
+#define HOLDING_REGISTER_MAXIMUM_PRESSURE_MESSAGE                                                                      \
+    (HOLDING_REGISTER_MINIMUM_PRESSURE_MESSAGE + EASYCONNECT_MESSAGE_NUM_REGISTERS)
+#define HOLDING_REGISTER_PRESSURE EASYCONNECT_HOLDING_REGISTER_CUSTOM_START
+
+
+static const char   *TAG = "Minion";
+ModbusSlave          minion;
+static unsigned long timestamp = 0;
 
 static ModbusError           register_callback(const ModbusSlave *status, const ModbusRegisterCallbackArgs *args,
                                                ModbusRegisterCallbackResult *result);
 static ModbusError           exception_callback(const ModbusSlave *minion, uint8_t function, ModbusExceptionCode code);
 static LIGHTMODBUS_RET_ERROR initialization_function(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
                                                      uint8_t requestLength);
+static LIGHTMODBUS_RET_ERROR set_datetime(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
+                                          uint8_t requestLength);
+static LIGHTMODBUS_RET_ERROR heartbeat_received(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
+                                                uint8_t requestLength);
+
 
 static const ModbusSlaveFunctionHandler custom_functions[] = {
 #if defined(LIGHTMODBUS_F01S) || defined(LIGHTMODBUS_SLAVE_FULL)
@@ -62,6 +78,8 @@ static const ModbusSlaveFunctionHandler custom_functions[] = {
 
     {EASYCONNECT_FUNCTION_CODE_CONFIG_ADDRESS, easyconnect_set_address_function},
     {EASYCONNECT_FUNCTION_CODE_RANDOM_SERIAL_NUMBER, easyconnect_send_address_function},
+    {EASYCONNECT_FUNCTION_CODE_SET_TIME, set_datetime},
+    {EASYCONNECT_FUNCTION_CODE_HEARTBEAT, heartbeat_received},
     {EASYCONNECT_FUNCTION_CODE_NETWORK_INITIALIZATION, initialization_function},
 
     // Guard - prevents 0 array size
@@ -84,11 +102,7 @@ void minion_init(easyconnect_interface_t *context) {
 
     modbusSlaveSetUserPointer(&minion, context);
 
-    /*uint8_t mac_address[6] = {0};
-    esp_read_mac(mac_address, ESP_MAC_WIFI_STA);
-    unsigned int mac = mac_address[2] | mac_address[3] << 8 | mac_address[4] << 16 | mac_address[5] << 24;
-    ESP_LOGI(TAG, "MAC Address: %i", mac);
-    srand(mac);*/
+    timestamp = get_millis();
 }
 
 
@@ -109,11 +123,17 @@ void minion_manage(void) {
             if (rlen > 0) {
                 rs485_write((uint8_t *)modbusSlaveGetResponse(&minion), rlen);
             } else {
-                ESP_LOGI(TAG, "Empty response");
+                ESP_LOGD(TAG, "Empty response");
             }
         } else if (err.error != MODBUS_ERROR_ADDRESS) {
             ESP_LOGW(TAG, "Invalid request with source %i and error %i", err.source, err.error);
             ESP_LOG_BUFFER_HEX(TAG, buffer, len);
+        }
+    }
+
+    if (is_expired(timestamp, get_millis(), EASYCONNECT_HEARTBEAT_TIMEOUT)) {
+        if (model_get_missing_heartbeat(context->arg) == 0) {
+            model_set_missing_heartbeat(context->arg, 1);
         }
     }
 }
@@ -183,7 +203,39 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                             break;
 
                         case EASYCONNECT_HOLDING_REGISTER_ALARMS:
-                            result->value = !safety_ok(ctx->arg);
+                            result->value =
+                                (safety_signal_ok(ctx->arg) == 0) | ((safety_pressure_ok(ctx->arg) == 0) << 1);
+                            break;
+
+                        case EASYCONNECT_HOLDING_REGISTER_LOGS_COUNTER:
+                            result->value = 0;
+                            break;
+
+                        case EASYCONNECT_HOLDING_REGISTER_LOGS ... EASYCONNECT_HOLDING_REGISTER_MESSAGE_1 - 1: {
+                            result->value = 0;
+                            break;
+                        }
+
+                        case HOLDING_REGISTER_MINIMUM_PRESSURE_MESSAGE ... HOLDING_REGISTER_MAXIMUM_PRESSURE_MESSAGE -
+                            1: {
+                            char msg[EASYCONNECT_MESSAGE_SIZE + 1] = {0};
+                            model_get_minimum_pressure_message(ctx->arg, msg);
+                            size_t i      = args->index - HOLDING_REGISTER_MINIMUM_PRESSURE_MESSAGE;
+                            result->value = msg[i * 2] << 8 | msg[i * 2 + 1];
+                            break;
+                        }
+
+                        case HOLDING_REGISTER_MAXIMUM_PRESSURE_MESSAGE ... HOLDING_REGISTER_MAXIMUM_PRESSURE_MESSAGE +
+                            EASYCONNECT_MESSAGE_NUM_REGISTERS - 1: {
+                            char msg[EASYCONNECT_MESSAGE_SIZE + 1] = {0};
+                            model_get_maximum_pressure_message(ctx->arg, msg);
+                            size_t i      = args->index - HOLDING_REGISTER_MAXIMUM_PRESSURE_MESSAGE;
+                            result->value = msg[i * 2] << 8 | msg[i * 2 + 1];
+                            break;
+                        }
+
+                        case HOLDING_REGISTER_PRESSURE:
+                            result->value = model_get_pressure(ctx->arg);
                             break;
                     }
                     break;
@@ -243,5 +295,35 @@ static ModbusError exception_callback(const ModbusSlave *minion, uint8_t functio
 
 static LIGHTMODBUS_RET_ERROR initialization_function(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
                                                      uint8_t requestLength) {
+    return MODBUS_NO_ERROR();
+}
+
+
+static LIGHTMODBUS_RET_ERROR heartbeat_received(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
+                                                uint8_t requestLength) {
+    easyconnect_interface_t *ctx = modbusSlaveGetUserPointer(minion);
+    ESP_LOGI(TAG, "Heartbeat");
+
+    timestamp = get_millis();
+    model_set_missing_heartbeat(ctx->arg, 0);
+    return MODBUS_NO_ERROR();
+}
+
+
+static LIGHTMODBUS_RET_ERROR set_datetime(ModbusSlave *minion, uint8_t function, const uint8_t *requestPDU,
+                                          uint8_t requestLength) {
+    // Check request length
+    if (requestLength < 8) {
+        return modbusBuildException(minion, function, MODBUS_EXCEP_ILLEGAL_VALUE);
+    }
+
+    uint64_t timestamp = 0;
+    deserialize_uint64_be(&timestamp, (uint8_t *)requestPDU);
+
+    struct timeval timeval = {0};
+    timeval.tv_sec         = timestamp;
+
+    settimeofday(&timeval, NULL);
+
     return MODBUS_NO_ERROR();
 }

@@ -9,7 +9,6 @@
 #include "peripherals/digin.h"
 #include "peripherals/digout.h"
 #include "peripherals/storage.h"
-#include "peripherals/heartbeat.h"
 #include "peripherals/rs485.h"
 #include "peripherals/hardwareprofile.h"
 #include "easyconnect_interface.h"
@@ -29,7 +28,6 @@ void app_main(void) {
     rs485_init(EASYCONNECT_BAUDRATE);
     digin_init();
     digout_init();
-    heartbeat_init();
 
     model_init(&model);
     controller_init(&model);

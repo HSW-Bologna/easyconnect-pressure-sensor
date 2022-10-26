@@ -6,7 +6,6 @@
 #include "utils/utils.h"
 #include "peripherals/rs485.h"
 #include "peripherals/digin.h"
-#include "peripherals/heartbeat.h"
 #include "peripherals/digout.h"
 #include "model/model.h"
 #include "esp32c3_commandline.h"
@@ -19,6 +18,8 @@
 #include "safety.h"
 #include "approval.h"
 #include "sensors.h"
+#include "leds_communication.h"
+#include "leds_activity.h"
 
 
 static void    console_task(void *args);
@@ -61,14 +62,30 @@ void controller_manage(model_t *pmodel) {
 
     minion_manage();
 
-    if (is_expired(timestamp, get_millis(), 500UL)) {
-        if (safety_ok(pmodel)) {
+    if (is_expired(timestamp, get_millis(), 500UL) || digin_is_value_ready()) {
+        double temperature = 0;
+        double pressure    = 0;
+
+        sensors_read(&temperature, &pressure);
+        int16_t mbar_pressure = (int16_t)((pressure - 1000.) * 10);
+        (void)temperature;
+        model_set_pressure(pmodel, mbar_pressure);
+
+        uint8_t safety_signal   = safety_signal_ok(pmodel);
+        uint8_t safety_pressure = safety_pressure_ok(pmodel);
+
+        if (safety_signal && safety_pressure && !model_get_missing_heartbeat(pmodel)) {
             approval_on();
         } else {
             approval_off();
         }
+
         timestamp = get_millis();
     }
+
+    digout_update(DIGOUT_LED_APPROVAL, (leds_communication_manage(get_millis(), !model_get_missing_heartbeat(pmodel))));
+    digout_update(DIGOUT_LED_SAFETY,
+                  (leds_activity_manage(get_millis(), safety_pressure_ok(pmodel), safety_signal_ok(pmodel), 1)));
 }
 
 

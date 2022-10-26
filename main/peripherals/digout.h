@@ -6,8 +6,9 @@
 
 
 typedef enum {
-    DIGOUT_RELE = 0,
-    DIGOUT_LIGHT_SIGNAL,
+    DIGOUT_APPROVAL = 0,
+    DIGOUT_LED_SAFETY,
+    DIGOUT_LED_APPROVAL,
 } digout_t;
 
 

@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
 #include "driver/gpio.h"
 #include "gel/debounce/debounce.h"
 #include "freertos/semphr.h"
@@ -30,7 +29,7 @@ static void periodic_read(TimerHandle_t timer);
 void digin_init(void) {
     gpio_config_t io_conf = {};
     io_conf.intr_type     = GPIO_INTR_DISABLE;
-    io_conf.pin_bit_mask  = BIT64(HAP_SAFETY) | BIT64(HAP_SIGNAL);
+    io_conf.pin_bit_mask  = BIT64(HAP_SAFETY);
     io_conf.mode          = GPIO_MODE_INPUT;
     io_conf.pull_down_en  = 0;
     io_conf.pull_up_en    = 0;
@@ -45,7 +44,7 @@ void digin_init(void) {
 
     static StaticTimer_t timer_buffer;
     TimerHandle_t        timer =
-        xTimerCreateStatic("timerInput", pdMS_TO_TICKS(5), pdTRUE, NULL, periodic_read, &timer_buffer);
+        xTimerCreateStatic("timerInput", pdMS_TO_TICKS(10), pdTRUE, NULL, periodic_read, &timer_buffer);
     xTimerStart(timer, portMAX_DELAY);
 }
 
@@ -62,8 +61,7 @@ int digin_get(digin_t digin) {
 int digin_take_reading(void) {
     unsigned int input = 0;
     input |= !gpio_get_level(HAP_SAFETY);
-    input |= (!gpio_get_level(HAP_SIGNAL)) << 1;
-    return debounce_filter(&filter, input, 10);
+    return debounce_filter(&filter, input, 5);
 }
 
 

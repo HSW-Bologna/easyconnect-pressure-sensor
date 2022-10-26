@@ -6,7 +6,8 @@
 #include "model/model.h"
 
 
-uint8_t safety_ok(model_t *pmodel);
+uint8_t safety_signal_ok(model_t *pmodel);
+uint8_t safety_pressure_ok(model_t *pmodel);
 
 
 #endif

@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-PROJECT=easyconnect-peripheral
+PROJECT=easyconnect-pressure
 DIR=${PROJECT}_v$1_$2_$3
 mkdir /tmp/$DIR
 cp ./build/bootloader/bootloader.bin /tmp/$DIR

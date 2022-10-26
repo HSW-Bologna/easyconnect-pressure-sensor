@@ -7,7 +7,6 @@
 
 typedef enum {
     DIGIN_SAFETY = 0,
-    DIGIN_SIGNAL,
 } digin_t;
 
 void         digin_init(void);
