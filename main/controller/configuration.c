@@ -19,12 +19,13 @@
 
 void configuration_init(model_t *pmodel) {
     uint16_t value = 0;
+    uint32_t value_32bit = 0;
 
     if (load_uint16_option(&value, ADDRESS_KEY) == 0) {
         model_set_address(pmodel, value);
     }
-    if (load_uint16_option(&value, SERIAL_NUM_KEY) == 0) {
-        model_set_serial_number(pmodel, value);
+    if (load_uint32_option(&value_32bit, SERIAL_NUM_KEY) == 0) {
+        model_set_serial_number(pmodel, value_32bit);
     }
     if (load_uint16_option(&value, MODEL_KEY) == 0) {
         model_set_class(pmodel, value, NULL);
@@ -43,8 +44,8 @@ void configuration_init(model_t *pmodel) {
 }
 
 
-void configuration_save_serial_number(void *args, uint16_t value) {
-    save_uint16_option(&value, SERIAL_NUM_KEY);
+void configuration_save_serial_number(void *args, uint32_t value) {
+    save_uint32_option(&value, SERIAL_NUM_KEY);
     model_set_serial_number(args, value);
 }
 

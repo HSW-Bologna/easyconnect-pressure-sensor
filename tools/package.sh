@@ -8,3 +8,4 @@ cp ./build/partition_table/partition-table.bin /tmp/$DIR
 cp ./build/$PROJECT.bin /tmp/$DIR
 cd /tmp
 tar -czf $DIR.tar.gz $DIR
+zip -r $DIR.zip $DIR

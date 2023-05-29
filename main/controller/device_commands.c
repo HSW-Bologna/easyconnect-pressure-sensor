@@ -123,10 +123,11 @@ static int command_read_sensors(int argc, char **argv) {
     if (nerrors == 0) {
         double temperature = 0;
         double pressure    = 0;
+        double humidity    = 0;
 
-        sensors_read(&temperature, &pressure);
+        sensors_read(&temperature, &pressure, &humidity);
 
-        printf("%4.2f C\n%4.2f mBar\n", temperature, pressure);
+        printf("%4.2f C\n%4.2f Pa %4.2f%%\n", temperature, pressure, humidity);
     } else {
         arg_print_errors(stdout, end, "Read sensors values");
     }

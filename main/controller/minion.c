@@ -29,7 +29,9 @@
 #define HOLDING_REGISTER_MINIMUM_PRESSURE_MESSAGE EASYCONNECT_HOLDING_REGISTER_MESSAGE_1
 #define HOLDING_REGISTER_MAXIMUM_PRESSURE_MESSAGE                                                                      \
     (HOLDING_REGISTER_MINIMUM_PRESSURE_MESSAGE + EASYCONNECT_MESSAGE_NUM_REGISTERS)
-#define HOLDING_REGISTER_PRESSURE EASYCONNECT_HOLDING_REGISTER_CUSTOM_START
+#define HOLDING_REGISTER_PRESSURE    EASYCONNECT_HOLDING_REGISTER_CUSTOM_START
+#define HOLDING_REGISTER_TEMPERATURE EASYCONNECT_HOLDING_REGISTER_CUSTOM_START + 1
+#define HOLDING_REGISTER_HUMIDITY    EASYCONNECT_HOLDING_REGISTER_CUSTOM_START + 2
 
 
 static const char   *TAG = "Minion";
@@ -94,7 +96,7 @@ void minion_init(easyconnect_interface_t *context) {
                           exception_callback,         // Callback for handling minion exceptions (optional)
                           modbusDefaultAllocator,     // Memory allocator for allocating responses
                           custom_functions,           // Set of supported functions
-                          13                          // Number of supported functions
+                          14                          // Number of supported functions
     );
 
     // Check for errors
@@ -159,7 +161,9 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                     switch (args->index) {
                         case EASYCONNECT_HOLDING_REGISTER_ADDRESS:
                         case EASYCONNECT_HOLDING_REGISTER_CLASS:
-                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER:
+                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER_1:
+                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER_2:
+                        case EASYCONNECT_HOLDING_REGISTER_STATE:
                             break;
 
                         default:
@@ -198,8 +202,12 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                             result->value = ctx->get_class(ctx->arg);
                             break;
 
-                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER:
-                            result->value = ctx->get_serial_number(ctx->arg);
+                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER_1:
+                            result->value = (ctx->get_serial_number(ctx->arg) >> 16) & 0xFFFF;
+                            break;
+
+                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER_2:
+                            result->value = ctx->get_serial_number(ctx->arg) & 0xFFFF;
                             break;
 
                         case EASYCONNECT_HOLDING_REGISTER_ALARMS:
@@ -237,6 +245,14 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                         case HOLDING_REGISTER_PRESSURE:
                             result->value = model_get_pressure(ctx->arg);
                             break;
+
+                        case HOLDING_REGISTER_TEMPERATURE:
+                            result->value = model_get_temperature(ctx->arg);
+                            break;
+
+                        case HOLDING_REGISTER_HUMIDITY:
+                            result->value = model_get_humidity(ctx->arg);
+                            break;
                     }
                     break;
                 }
@@ -262,9 +278,16 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                         case EASYCONNECT_HOLDING_REGISTER_CLASS:
                             ctx->save_class(ctx->arg, args->value);
                             break;
-                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER:
-                            ctx->save_serial_number(ctx->arg, args->value);
+                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER_1: {
+                            uint32_t current_serial_number = ctx->get_serial_number(ctx->arg);
+                            ctx->save_serial_number(ctx->arg, (args->value << 16) | (current_serial_number & 0xFFFF));
                             break;
+                        }
+                        case EASYCONNECT_HOLDING_REGISTER_SERIAL_NUMBER_2: {
+                            uint32_t current_serial_number = ctx->get_serial_number(ctx->arg);
+                            ctx->save_serial_number(ctx->arg, args->value | (current_serial_number & 0xFFFF0000));
+                            break;
+                        }
                     }
                     break;
                 }

@@ -20,6 +20,8 @@ void model_init(model_t *pmodel) {
     pmodel->minimum_pressure = APP_CONFIG_DEFAULT_MINIMUM_PRESSURE_THRESHOLD;
     pmodel->maximum_pressure = APP_CONFIG_DEFAULT_MAXIMUM_PRESSURE_THRESHOLD;
     pmodel->pressure         = 0;
+    pmodel->temperature      = 0;
+    pmodel->humidity         = 0;
 
     pmodel->missing_heartbeat = 0;
 
@@ -66,8 +68,8 @@ int model_set_minimum_pressure(model_t *pmodel, uint16_t pressure) {
     int res = 0;
 
     xSemaphoreTake(pmodel->sem, portMAX_DELAY);
-    if (pressure > APP_CONFIG_DEFAULT_MINIMUM_PRESSURE_THRESHOLD &&
-        pressure < APP_CONFIG_DEFAULT_MAXIMUM_PRESSURE_THRESHOLD) {
+    if (pressure >= APP_CONFIG_DEFAULT_MINIMUM_PRESSURE_THRESHOLD &&
+        pressure <= APP_CONFIG_DEFAULT_MAXIMUM_PRESSURE_THRESHOLD) {
         pmodel->minimum_pressure = pressure;
     } else {
         res = -1;
@@ -83,8 +85,8 @@ int model_set_maximum_pressure(model_t *pmodel, uint16_t pressure) {
     int res = 0;
 
     xSemaphoreTake(pmodel->sem, portMAX_DELAY);
-    if (pressure > APP_CONFIG_DEFAULT_MINIMUM_PRESSURE_THRESHOLD &&
-        pressure < APP_CONFIG_DEFAULT_MAXIMUM_PRESSURE_THRESHOLD) {
+    if (pressure >= APP_CONFIG_DEFAULT_MINIMUM_PRESSURE_THRESHOLD &&
+        pressure <= APP_CONFIG_DEFAULT_MAXIMUM_PRESSURE_THRESHOLD) {
         pmodel->maximum_pressure = pressure;
     } else {
         res = -1;
@@ -141,9 +143,9 @@ void model_set_maximum_pressure_message(model_t *pmodel, const char *string) {
 
 static uint8_t valid_mode(uint16_t mode) {
     switch (mode) {
-        case DEVICE_MODE_PRESSURE_SAFETY:
-        case DEVICE_MODE_PRESSURE_TEMPERATURE_HUMIDITY_SAFETY:
-        case DEVICE_MODE_TEMPERATURE_HUMIDITY_SAFETY:
+        case DEVICE_MODE_PRESSURE:
+        case DEVICE_MODE_PRESSURE_TEMPERATURE_HUMIDITY:
+        case DEVICE_MODE_TEMPERATURE_HUMIDITY:
             return 1;
         default:
             return 0;

@@ -6,5 +6,6 @@
 
 
 extern i2c_driver_t press_driver;
+extern i2c_driver_t shtc3_driver;
 
 #endif

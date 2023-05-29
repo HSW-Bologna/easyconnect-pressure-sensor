@@ -12,6 +12,7 @@
 #include "peripherals/rs485.h"
 #include "peripherals/hardwareprofile.h"
 #include "easyconnect_interface.h"
+#include "i2c_ports/esp-idf/esp_idf_i2c_port.h"
 
 
 static const char *TAG = "Main";

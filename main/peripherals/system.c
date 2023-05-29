@@ -20,7 +20,7 @@ void system_i2c_init(void) {
         .sda_pullup_en    = GPIO_PULLUP_ENABLE,
         .scl_io_num       = I2C_SCL,
         .scl_pullup_en    = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000,
+        .master.clk_speed = 400000,
         .clk_flags        = 0,
     };
     ESP_ERROR_CHECK(i2c_driver_install(I2C_NUM_0, conf.mode, 0, 0, 0));

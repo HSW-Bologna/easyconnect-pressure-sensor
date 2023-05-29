@@ -46,10 +46,20 @@ void controller_init(model_t *pmodel) {
     (void)TAG;
     context.arg = pmodel;
 
-    sensors_init();
-
     configuration_init(pmodel);
     minion_init(&context);
+
+    switch (CLASS_GET_MODE(model_get_class(pmodel))) {
+        case DEVICE_MODE_PRESSURE:
+            sensors_init(1, 0);
+            break;
+        case DEVICE_MODE_TEMPERATURE_HUMIDITY:
+            sensors_init(0, 1);
+            break;
+        case DEVICE_MODE_PRESSURE_TEMPERATURE_HUMIDITY:
+            sensors_init(1, 1);
+            break;
+    }
 
     static uint8_t      stack_buffer[APP_CONFIG_BASE_TASK_STACK_SIZE * 6];
     static StaticTask_t task_buffer;
@@ -65,11 +75,13 @@ void controller_manage(model_t *pmodel) {
     if (is_expired(timestamp, get_millis(), 500UL) || digin_is_value_ready()) {
         double temperature = 0;
         double pressure    = 0;
+        double humidity    = 0;
 
-        sensors_read(&temperature, &pressure);
-        int16_t mbar_pressure = (int16_t)((pressure - 1000.) * 10);
-        (void)temperature;
-        model_set_pressure(pmodel, mbar_pressure);
+        sensors_read(&temperature, &pressure, &humidity);
+        int16_t pascal_pressure = (int16_t)((pressure - 1000.) * 100);
+        model_set_temperature(pmodel, (int16_t)temperature);
+        model_set_humidity(pmodel, (int16_t)humidity);
+        model_set_pressure(pmodel, pascal_pressure);
 
         uint8_t safety_signal   = safety_signal_ok(pmodel);
         uint8_t safety_pressure = safety_pressure_ok(pmodel);

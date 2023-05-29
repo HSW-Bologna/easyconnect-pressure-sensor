@@ -8,7 +8,7 @@
 
 #define EASYCONNECT_DEFAULT_MINION_ADDRESS       1
 #define EASYCONNECT_DEFAULT_MINION_SERIAL_NUMBER 3
-#define EASYCONNECT_DEFAULT_DEVICE_CLASS         CLASS(DEVICE_MODE_PRESSURE_SAFETY, DEVICE_GROUP_1)
+#define EASYCONNECT_DEFAULT_DEVICE_CLASS         CLASS(DEVICE_MODE_PRESSURE, DEVICE_GROUP_1)
 
 #define GETTER_UNSAFE(name, field)                                                                                     \
     static inline __attribute__((always_inline)) typeof(((model_t *)0)->field) model_get_##name(model_t *pmodel) {     \
@@ -72,7 +72,7 @@ typedef struct {
 
     uint16_t address;
     uint16_t class;
-    uint16_t serial_number;
+    uint32_t serial_number;
 
     uint16_t minimum_pressure;
     uint16_t maximum_pressure;
@@ -80,7 +80,9 @@ typedef struct {
     char minimum_pressure_message[EASYCONNECT_MESSAGE_SIZE + 1];
     char maximum_pressure_message[EASYCONNECT_MESSAGE_SIZE + 1];
 
-    uint16_t pressure;
+    int16_t temperature;
+    int16_t pressure;     // Pressure value in pascal
+    int16_t humidity;
 } model_t;
 
 
@@ -99,6 +101,8 @@ void     model_set_maximum_pressure_message(model_t *pmodel, const char *string)
 GETTERNSETTER_GENERIC(address, address);
 GETTERNSETTER_GENERIC(serial_number, serial_number);
 GETTERNSETTER_GENERIC(pressure, pressure);
+GETTERNSETTER_GENERIC(temperature, temperature);
+GETTERNSETTER_GENERIC(humidity, humidity);
 GETTERNSETTER_GENERIC(missing_heartbeat, missing_heartbeat);
 GETTER(model_t, minimum_pressure, minimum_pressure);
 GETTER(model_t, maximum_pressure, maximum_pressure);
