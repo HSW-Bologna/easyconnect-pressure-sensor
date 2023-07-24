@@ -24,6 +24,7 @@
 #include "safety.h"
 #include "config/app_config.h"
 #include "gel/serializer/serializer.h"
+#include "sensors.h"
 
 
 #define HOLDING_REGISTER_MINIMUM_PRESSURE_MESSAGE EASYCONNECT_HOLDING_REGISTER_MESSAGE_1
@@ -213,6 +214,10 @@ ModbusError register_callback(const ModbusSlave *status, const ModbusRegisterCal
                         case EASYCONNECT_HOLDING_REGISTER_ALARMS:
                             result->value =
                                 (safety_signal_ok(ctx->arg) == 0) | ((safety_pressure_ok(ctx->arg) == 0) << 1);
+                            break;
+
+                        case EASYCONNECT_HOLDING_REGISTER_STATE:
+                            result->value = sensors_get_errors();
                             break;
 
                         case EASYCONNECT_HOLDING_REGISTER_LOGS_COUNTER:

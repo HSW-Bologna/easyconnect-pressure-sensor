@@ -9,7 +9,7 @@
 
 
 #define NUM_SAMPLES_PRESSURE 200
-#define NUM_SAMPLES_SHTC3    50
+#define NUM_SAMPLES_SHTC3    5
 
 
 static void temperature_task(void *args);
@@ -27,8 +27,10 @@ static uint32_t          pressure_adc_buffer[NUM_SAMPLES_PRESSURE]    = {0};
 static size_t            ms5837_sample_index                          = 0;
 static uint8_t           ms5837_full_circle                           = 0;
 static ms5837_prom_t     ms5837_data;
-static size_t            shtc3_sample_index = 0;
-static uint8_t           shtc3_full_circle  = 0;
+static size_t            shtc3_sample_index         = 0;
+static uint8_t           shtc3_full_circle          = 0;
+static uint8_t           temperature_humidity_error = 0;
+static uint8_t           pressure_error             = 0;
 
 
 void sensors_init(uint8_t pressure, uint8_t temperature_humidity) {
@@ -37,7 +39,7 @@ void sensors_init(uint8_t pressure, uint8_t temperature_humidity) {
 
     if (pressure) {
         static StaticTask_t static_task;
-        static StackType_t  task_stack[APP_CONFIG_BASE_TASK_STACK_SIZE * 3];
+        static StackType_t  task_stack[APP_CONFIG_BASE_TASK_STACK_SIZE * 4];
         xTaskCreateStatic(pressure_task, TAG, sizeof(task_stack) / sizeof(StackType_t), NULL, 5, task_stack,
                           &static_task);
     }
@@ -45,7 +47,7 @@ void sensors_init(uint8_t pressure, uint8_t temperature_humidity) {
 
     if (temperature_humidity) {
         static StaticTask_t static_task;
-        static StackType_t  task_stack[APP_CONFIG_BASE_TASK_STACK_SIZE * 3];
+        static StackType_t  task_stack[APP_CONFIG_BASE_TASK_STACK_SIZE * 4];
         xTaskCreateStatic(temperature_task, TAG, sizeof(task_stack) / sizeof(StackType_t), NULL, 1, task_stack,
                           &static_task);
     }
@@ -92,6 +94,14 @@ void sensors_read(double *temperature, double *pressure, double *humidity) {
 }
 
 
+uint8_t sensors_get_errors(void) {
+    xSemaphoreTake(sem, portMAX_DELAY);
+    uint8_t res = (temperature_humidity_error > 0) | ((pressure_error > 0) << 1);
+    xSemaphoreGive(sem);
+    return res;
+}
+
+
 static void temperature_task(void *args) {
     (void)args;
     shtc3_wakeup(shtc3_driver);
@@ -110,16 +120,23 @@ static void temperature_task(void *args) {
                 if (shtc3_sample_index == NUM_SAMPLES_SHTC3 - 1) {
                     shtc3_full_circle = 1;
                 }
-                shtc3_sample_index = (shtc3_sample_index + 1) % NUM_SAMPLES_SHTC3;
+                shtc3_sample_index         = (shtc3_sample_index + 1) % NUM_SAMPLES_SHTC3;
+                temperature_humidity_error = 0;
                 xSemaphoreGive(sem);
             } else {
+                xSemaphoreTake(sem, portMAX_DELAY);
+                temperature_humidity_error = 1;
+                xSemaphoreGive(sem);
                 ESP_LOGD(TAG, "Error in reading temperature measurement");
             }
         } else {
+            xSemaphoreTake(sem, portMAX_DELAY);
+            temperature_humidity_error = 1;
+            xSemaphoreGive(sem);
             ESP_LOGD(TAG, "Error in starting temperature measurement");
         }
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 
     vTaskDelete(NULL);
@@ -142,6 +159,11 @@ static void pressure_task(void *args) {
 
         if (res) {
             ESP_LOGW(TAG, "Error reading sensor: %i", res);
+
+            xSemaphoreTake(sem, portMAX_DELAY);
+            pressure_error = 1;
+            xSemaphoreGive(sem);
+
             if ((retry_counter++ % 10) == 0) {
                 ms5837_init(press_driver, &ms5837_data);
             }
@@ -156,6 +178,7 @@ static void pressure_task(void *args) {
                 ms5837_full_circle  = 1;
                 ms5837_sample_index = 0;
             }
+            pressure_error = 0;
             xSemaphoreGive(sem);
         }
 

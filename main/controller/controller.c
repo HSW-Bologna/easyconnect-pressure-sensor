@@ -78,7 +78,7 @@ void controller_manage(model_t *pmodel) {
         double humidity    = 0;
 
         sensors_read(&temperature, &pressure, &humidity);
-        int16_t pascal_pressure = (int16_t)((pressure - 1000.) * 100);
+        int16_t pascal_pressure = (int16_t)((pressure - 1013.25) * 100);
         model_set_temperature(pmodel, (int16_t)temperature);
         model_set_humidity(pmodel, (int16_t)humidity);
         model_set_pressure(pmodel, pascal_pressure);
